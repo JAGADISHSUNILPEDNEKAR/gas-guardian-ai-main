@@ -1,21 +1,22 @@
 import { Router } from 'express';
 import AIAgentService from '../../services/AIAgentService.js';
-import { optionalAuth, AuthRequest } from '../middleware/auth.js';
+import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
-router.post('/', optionalAuth, async (req: AuthRequest, res) => {
+router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { message, walletAddress, context } = req.body;
+    const { message, context } = req.body;
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({ success: false, error: 'Message is required' });
       return;
     }
 
+    // Use authenticated wallet address
     const recommendation = await AIAgentService.getRecommendation(
       message,
-      walletAddress || req.walletAddress,
+      req.walletAddress,
       context
     );
 
