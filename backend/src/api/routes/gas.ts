@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import GasOracleService from '../../services/GasOracleService.js';
-import FTSOv2Service from '../../services/FTSOv2Service.js';
-import PredictionEngine from '../../services/PredictionEngine.js';
+import { GasOracleService } from '../../services/GasOracleService.js';
+import { FTSOv2Service } from '../../services/FTSOv2Service.js';
+import { PredictionEngine } from '../../services/PredictionEngine.js';
 
 const router = Router();
 
@@ -55,6 +55,25 @@ router.get('/current', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch gas data',
+    });
+  }
+});
+
+// GET /api/gas/history
+router.get('/history', async (req, res) => {
+  try {
+    const gasOracle = new GasOracleService();
+    const history = await gasOracle.getHistoricalGasPrices(24); // 24 hours
+
+    res.json({
+      success: true,
+      data: history,
+    });
+  } catch (error: any) {
+    console.error('Gas history error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch gas history',
     });
   }
 });
