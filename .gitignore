@@ -6,25 +6,52 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+bun-debug.log*
 
 # Dependencies
-node_modules
+node_modules/
 bun.lockb
 
 # Build outputs
-dist
-dist-ssr
+dist/
+dist-ssr/
+build/
 *.local
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+
+# Hardhat / Solidity
+cache/
+artifacts/
+typechain-types/
+coverage/
+coverage.json
+
+# Testing
+.nyc_output/
+*.test.js.snap
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Prisma
+backend/prisma/migrations/*.sql
+!backend/prisma/migrations/**/migration.sql
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 *.suo
 *.ntvs*
@@ -34,3 +61,37 @@ dist-ssr
 
 # OS files
 Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# Package manager locks (keep package-lock.json, ignore others)
+yarn.lock
+pnpm-lock.yaml
+
+# IDE
+*.code-workspace
+.vscode/
+.idea/
+*.iml
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Misc
+*.pem
+*.key
+*.crt
+.secrets/
+secrets/
