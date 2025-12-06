@@ -6,25 +6,43 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+bun-debug.log*
 
 # Dependencies
-node_modules
+node_modules/
 bun.lockb
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Build outputs
-dist
-dist-ssr
+dist/
+dist-ssr/
+build/
 *.local
+.cache/
+.parcel-cache/
+.next/
+out/
+.nuxt/
+.output/
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.test
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 *.suo
 *.ntvs*
@@ -34,3 +52,45 @@ dist-ssr
 
 # OS files
 Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+.jest/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Prisma
+# Keep migrations but ignore generated client (if any)
+# backend/prisma/migrations/ - migrations should be committed
+
+# Hardhat
+cache/
+artifacts/
+typechain-types/
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+.vercel
+.netlify
+.turbo
