@@ -4,13 +4,17 @@ import { ExportData } from '@/components/analytics/ExportData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, DollarSign, Zap, Target } from 'lucide-react';
 
+import { useAnalyticsStats } from '@/hooks/useGasPrice';
+
 const Analytics = () => {
-  // Mock stats - in real app, fetch from API
+  const { data: statsData } = useAnalyticsStats();
+
+  // Use real data or safe defaults
   const stats = {
-    totalSaved: 125.40,
-    transactionCount: 47,
-    optimalRate: 87,
-    averageSavings: 0.42,
+    totalSaved: statsData?.data?.totalSaved || 0,
+    transactionCount: statsData?.data?.transactionCount || 0,
+    optimalRate: statsData?.data?.optimalRate || 0,
+    averageSavings: statsData?.data?.averageSavings || 0,
   };
 
   return (

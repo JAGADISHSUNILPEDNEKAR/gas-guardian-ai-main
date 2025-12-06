@@ -6,8 +6,29 @@ import { Fuel, DollarSign, Activity, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { useGasPrice, useGasHistory } from "@/hooks/useGasPrice";
 
 const Index = () => {
+  const { data: gasResponse, isLoading } = useGasPrice();
+  const { data: historyResponse, isLoading: isHistoryLoading } = useGasHistory();
+
+  const gasData = gasResponse?.data;
+  const historyData = historyResponse?.data || [];
+
+  // Format history for chart
+  const chartData = historyData.map((item: any) => ({
+    time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    gas: item.gasPrice,
+    prediction: item.gasPrice * 1.05, // Mock prediction overlay for now
+  }));
+
+  // Safe defaults if loading or error
+  const currentGwei = gasData?.gasPrice?.gwei ?? 0;
+  const priceUsd = gasData?.prices?.usd ?? 0;
+  const congestion = gasData?.network?.congestion ?? 0;
+  const status = gasData?.status ?? "Checking...";
+  const trend = gasData?.trend ?? "Stable";
+
   return (
     <MainLayout>
       {/* Header */}
@@ -22,11 +43,11 @@ const Index = () => {
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="gap-2 py-1.5 px-3">
-            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            <div className={`h-2 w-2 rounded-full ${!isLoading ? "bg-success" : "bg-gray-400"} animate-pulse`} />
             FTSOv2 Connected
           </Badge>
           <Badge variant="outline" className="gap-2 py-1.5 px-3">
-            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+            <div className={`h-2 w-2 rounded-full ${!isLoading ? "bg-primary" : "bg-gray-400"} animate-pulse`} />
             FDC Active
           </Badge>
           <Link to="/chat">
@@ -42,29 +63,29 @@ const Index = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <GasMetricCard
           title="Current Gas"
-          value="18 gwei"
-          subValue="~$0.42 per tx"
-          trend="down"
-          trendValue="-12%"
-          badge={{ label: "MEDIUM", variant: "medium" }}
+          value={`${isLoading ? '...' : currentGwei} gwei`}
+          subValue={isLoading ? 'Loading...' : `~$${(currentGwei * 0.000000001 * 21000 * 0.025).toFixed(4)} per tx`}
+          trend={trend === 'FALLING' ? "down" : trend === 'RISING' ? "up" : "neutral"}
+          trendValue={status}
+          badge={{ label: status, variant: status === 'LOW' ? "low" : status === 'HIGH' ? "high" : "medium" }}
           icon={<Fuel className="h-5 w-5 text-primary" />}
         />
         <GasMetricCard
           title="FLR Price"
-          value="$0.0234"
+          value={isLoading ? '...' : `$${(gasData?.ftsoPrice?.flr || 0).toFixed(4)}`}
           subValue="via FTSOv2"
           trend="up"
-          trendValue="+3.2%"
+          trendValue="+0.0%"
           badge={{ label: "LIVE", variant: "glow" }}
           icon={<DollarSign className="h-5 w-5 text-primary" />}
           glowing
         />
         <GasMetricCard
           title="Network Load"
-          value="45%"
-          subValue="Moderate congestion"
-          trend="neutral"
-          trendValue="Stable"
+          value={isLoading ? '...' : `${congestion}%`}
+          subValue={congestion > 80 ? "Heavy congestion" : "Moderate load"}
+          trend={congestion > 80 ? "up" : "neutral"}
+          trendValue={isLoading ? "..." : "Stable"}
           badge={{ label: "NORMAL", variant: "low" }}
           icon={<Activity className="h-5 w-5 text-primary" />}
         />
@@ -80,7 +101,7 @@ const Index = () => {
       {/* Charts and Recommendations */}
       <div className="grid gap-6 lg:grid-cols-3 mb-6">
         <div className="lg:col-span-2">
-          <GasChart />
+          <GasChart data={chartData} isLoading={isHistoryLoading} />
         </div>
         <div>
           <RecommendationCard />

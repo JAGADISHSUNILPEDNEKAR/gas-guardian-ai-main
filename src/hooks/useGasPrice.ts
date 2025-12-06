@@ -1,59 +1,41 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useQuery } from '@tanstack/react-query';
+import { gasApi, analyticsApi } from '../services/api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+export const useGasPrice = () => {
+  return useQuery({
+    queryKey: ['gas-price'],
+    queryFn: gasApi.getCurrentGas,
+    refetchInterval: 12000, // Every 12 seconds
+  });
+};
 
-interface GasPriceData {
-  gasPrice: {
-    gwei: number;
-    wei: string;
-  };
-  prices: {
-    flr: number;
-    usd: number;
-  };
-  network: {
-    congestion: number;
-    blockNumber: number;
-    blockTime: number;
-  };
-  ftsoPrice: {
-    flr: number;
-    timestamp: number;
-  };
-  status: 'LOW' | 'MEDIUM' | 'HIGH';
-  trend: 'RISING' | 'FALLING' | 'STABLE';
-}
+export const useGasPredictions = () => {
+  return useQuery({
+    queryKey: ['gas-predictions'],
+    queryFn: gasApi.getPredictions,
+    refetchInterval: 60000, // Every minute
+  });
+};
 
-export function useGasPrice() {
-  const [data, setData] = useState<GasPriceData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export const useGasHistory = () => {
+  return useQuery({
+    queryKey: ['gas-history'],
+    queryFn: gasApi.getHistory,
+    refetchInterval: 60000 * 5, // Every 5 minutes
+  });
+};
 
-  const fetchGasPrice = async () => {
-    try {
-      setError(null);
-      const response = await axios.get(`${API_URL}/api/gas/current`);
-      if (response.data.success) {
-        setData(response.data.data);
-      } else {
-        throw new Error(response.data.error || 'Failed to fetch gas price');
+export const useAnalyticsStats = () => {
+  return useQuery({
+    queryKey: ['analytics-stats'],
+    queryFn: async () => {
+      try {
+        return await analyticsApi.getStats();
+      } catch (e) {
+        console.warn('Failed to fetch analytics stats (auth required?)', e);
+        return null;
       }
-    } catch (err: any) {
-      console.error('Gas price fetch error:', err);
-      setError(err.message || 'Failed to fetch gas data');
-      // Don't clear data on error, keep showing last known good data
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchGasPrice();
-    const interval = setInterval(fetchGasPrice, 12000); // Every 12 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  return { data, loading, error, refetch: fetchGasPrice };
-}
-
+    },
+    retry: false,
+  });
+};

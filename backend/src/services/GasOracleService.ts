@@ -48,24 +48,30 @@ export class GasOracleService {
     // Get last 24 hours of gas history
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const history = await prisma.gasHistory.findMany({
-      where: {
-        timestamp: {
-          gte: oneDayAgo,
+    try {
+      const history = await prisma.gasHistory.findMany({
+        where: {
+          timestamp: {
+            gte: oneDayAgo,
+          },
         },
-      },
-      orderBy: {
-        gasPrice: 'asc',
-      },
-    });
+        orderBy: {
+          gasPrice: 'asc',
+        },
+      });
 
-    if (history.length === 0) {
-      const current = await this.getCurrentGas();
-      return current.gwei;
+      if (history.length === 0) {
+        const current = await this.getCurrentGas();
+        return current.gwei;
+      }
+
+      const index = Math.floor((history.length * percentile) / 100);
+      const val = history[index]?.gasPrice;
+      return val ? (typeof val === 'number' ? val : val.toNumber()) : 0;
+    } catch (error) {
+      console.error('Error fetching gas history (DB might be down):', error);
+      return 50; // Fallback to safe default (medium congestion assumption)
     }
-
-    const index = Math.floor((history.length * percentile) / 100);
-    return history[index]?.gasPrice || 0;
   }
 
   async estimateImmediateCost(gasUnits: number, gasPriceGwei: number): Promise<number> {
@@ -100,20 +106,30 @@ export class GasOracleService {
   async getHistoricalGasPrices(hours: number = 24): Promise<Array<{ timestamp: Date; gasPrice: number }>> {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-    return prisma.gasHistory.findMany({
-      where: {
-        timestamp: {
-          gte: startTime,
+    try {
+      const history = await prisma.gasHistory.findMany({
+        where: {
+          timestamp: {
+            gte: startTime,
+          },
         },
-      },
-      orderBy: {
-        timestamp: 'asc',
-      },
-      select: {
-        timestamp: true,
-        gasPrice: true,
-      },
-    });
+        orderBy: {
+          timestamp: 'asc',
+        },
+        select: {
+          timestamp: true,
+          gasPrice: true,
+        },
+      });
+
+      return history.map(h => ({
+        timestamp: h.timestamp,
+        gasPrice: typeof h.gasPrice === 'number' ? h.gasPrice : h.gasPrice.toNumber(),
+      }));
+    } catch (error) {
+      console.error('Error fetching historical gas prices:', error);
+      return [];
+    }
   }
 }
 
