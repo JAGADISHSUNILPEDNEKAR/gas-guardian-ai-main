@@ -1,0 +1,17 @@
+{
+  "name": "gasguard-contracts",
+  "version": "1.0.0",
+  "description": "GasGuard Mentor Smart Contracts",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:coston2": "hardhat run scripts/deploy/deployGasGuard.js --network coston2",
+    "deploy:flare": "hardhat run scripts/deploy/deployGasGuard.js --network flare",
+    "node": "hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.4"
+  }
+}
+

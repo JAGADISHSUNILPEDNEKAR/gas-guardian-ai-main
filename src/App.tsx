@@ -8,6 +8,8 @@ import Chat from "./pages/Chat";
 import GasGuard from "./pages/GasGuard";
 import Compare from "./pages/Compare";
 import Settings from "./pages/Settings";
+import Analytics from "./pages/Analytics";
+import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +25,8 @@ const App = () => (
           <Route path="/chat" element={<Chat />} />
           <Route path="/gasguard" element={<GasGuard />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

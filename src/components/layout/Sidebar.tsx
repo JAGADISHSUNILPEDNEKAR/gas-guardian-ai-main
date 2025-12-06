@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Fuel,
   Zap,
+  TrendingUp,
+  Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +21,8 @@ const navItems = [
   { icon: MessageSquare, label: "AI Chat", path: "/chat" },
   { icon: Shield, label: "GasGuard", path: "/gasguard" },
   { icon: BarChart3, label: "Compare Chains", path: "/compare" },
+  { icon: TrendingUp, label: "Analytics", path: "/analytics" },
+  { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
