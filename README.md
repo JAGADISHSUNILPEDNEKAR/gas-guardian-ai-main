@@ -83,34 +83,35 @@ npm install
 cd backend
 npm install
 cd ..
+
+# Install Hardhat for contracts
+npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
 ```
 
 ### 2. Environment Setup
 
-Create `.env` files (see `.env.example` for reference):
+```bash
+# Copy environment files
+cp .env.example .env
+cp backend/.env.example backend/.env
 
-**Backend** (`backend/.env`):
-```env
-DATABASE_URL=postgresql://gasguard:gasguard@localhost:5432/gasguard
-REDIS_URL=redis://localhost:6379
-FLARE_RPC_URL=https://flare-api.flare.network/ext/bc/C/rpc
-FTSO_ADDRESS=0x...
-FDC_ADDRESS=0x...
-OPENAI_API_KEY=sk-...
-JWT_SECRET=your-secret-key
-```
-
-**Frontend** (`.env`):
-```env
-VITE_API_URL=http://localhost:8080
-VITE_FLARE_RPC_URL=https://flare-api.flare.network/ext/bc/C/rpc
+# Edit the files and add your API keys
+# Required: OPENAI_API_KEY in backend/.env
 ```
 
 ### 3. Start Services
 
+**Option A: Docker (Recommended)**
+
 ```bash
-# Start PostgreSQL and Redis
-docker-compose -f infra/docker/docker-compose.yml up -d postgres redis
+docker-compose -f infra/docker/docker-compose.yml up -d
+```
+
+**Option B: Local Setup**
+
+```bash
+# Start PostgreSQL and Redis (if not using Docker)
+# Make sure they're running on default ports
 
 # Setup database
 cd backend
@@ -118,15 +119,15 @@ npx prisma migrate dev
 npx prisma generate
 cd ..
 
-# Start backend
+# Start backend (in one terminal)
 cd backend
 npm run dev
 
-# In another terminal, start frontend
+# Start frontend (in another terminal)
 npm run dev
 ```
 
-Visit `http://localhost:5173` to see the application.
+Visit `http://localhost:5173`
 
 ## 📚 Documentation
 

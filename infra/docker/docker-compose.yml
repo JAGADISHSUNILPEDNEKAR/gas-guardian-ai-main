@@ -3,6 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
+    container_name: gasguard-postgres
     environment:
       POSTGRES_USER: gasguard
       POSTGRES_PASSWORD: gasguard
@@ -16,9 +17,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - gasguard-network
 
   redis:
     image: redis:7-alpine
+    container_name: gasguard-redis
     ports:
       - "6379:6379"
     volumes:
@@ -28,11 +32,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - gasguard-network
 
   backend:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.backend
+    container_name: gasguard-backend
     environment:
       DATABASE_URL: postgresql://gasguard:gasguard@postgres:5432/gasguard
       REDIS_URL: redis://redis:6379
@@ -48,11 +55,16 @@ services:
     volumes:
       - ../../backend:/app
       - /app/node_modules
+      - /app/dist
+    networks:
+      - gasguard-network
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
 
   frontend:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.frontend
+    container_name: gasguard-frontend
     environment:
       VITE_API_URL: http://localhost:8080
     ports:
@@ -61,16 +73,14 @@ services:
       - backend
     volumes:
       - ../../src:/app/src
+      - ../../public:/app/public
       - /app/node_modules
+    networks:
+      - gasguard-network
 
-  hardhat-node:
-    image: node:18-alpine
-    working_dir: /app
-    command: npx hardhat node --hostname 0.0.0.0
-    ports:
-      - "8545:8545"
-    volumes:
-      - ../../:/app
+networks:
+  gasguard-network:
+    driver: bridge
 
 volumes:
   postgres_data:

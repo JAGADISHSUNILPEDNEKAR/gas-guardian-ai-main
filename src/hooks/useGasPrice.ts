@@ -32,13 +32,17 @@ export function useGasPrice() {
 
   const fetchGasPrice = async () => {
     try {
+      setError(null);
       const response = await axios.get(`${API_URL}/api/gas/current`);
       if (response.data.success) {
         setData(response.data.data);
-        setError(null);
+      } else {
+        throw new Error(response.data.error || 'Failed to fetch gas price');
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error('Gas price fetch error:', err);
+      setError(err.message || 'Failed to fetch gas data');
+      // Don't clear data on error, keep showing last known good data
     } finally {
       setLoading(false);
     }
