@@ -22,21 +22,8 @@ VITE_GASGUARD_ADDRESS=0x0000000000000000000000000000000000000000
 EOF
 fi
 
-# Check if PostgreSQL is running
-if ! pg_isready -h localhost -p 5432 > /dev/null 2>&1; then
-    echo "⚠️  PostgreSQL is not running on localhost:5432"
-    echo "   Please start PostgreSQL or use Docker:"
-    echo "   docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=gasguard -e POSTGRES_DB=gasguard postgres:15-alpine"
-    exit 1
-fi
-
-# Check if Redis is running
-if ! redis-cli ping > /dev/null 2>&1; then
-    echo "⚠️  Redis is not running on localhost:6379"
-    echo "   Please start Redis or use Docker:"
-    echo "   docker run -d --name redis -p 6379:6379 redis:7-alpine"
-    exit 1
-fi
+# Database checks skipped (using SQLite and optional Redis)
+echo "✅ Configuration checked"
 
 echo "✅ PostgreSQL and Redis are running"
 

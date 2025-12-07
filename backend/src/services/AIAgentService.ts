@@ -8,6 +8,14 @@ import { FDCService } from './FDCService.js';
 const apiKey = process.env.OPENAI_API_KEY || '';
 const isGroq = apiKey.startsWith('gsk_');
 
+// IMPORTANT: Validate API key on startup
+if (!apiKey || apiKey.trim() === '') {
+  console.warn('⚠️  WARNING: OPENAI_API_KEY not configured in environment variables!');
+  console.warn('⚠️  AI chat will use fallback responses. Add your API key to backend/.env');
+} else {
+  console.log(`✅ AI API configured (${isGroq ? 'Groq' : 'OpenAI'})`);
+}
+
 const openai = new OpenAI({
   apiKey: apiKey,
   baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
@@ -59,7 +67,7 @@ export class AIAgentService {
   ): Promise<AIResponse> {
     // Check cache (if Redis is available)
     const cacheKey = `ai:${Buffer.from(userMessage).toString('base64')}`;
-    if (redisClient && redisClient.isOpen) {
+    if (redisClient && redisClient.isConnected()) {
       try {
         const cached = await redisClient.get(cacheKey);
         if (cached) {
@@ -73,6 +81,12 @@ export class AIAgentService {
 
     // Get current gas context
     const gasContext = await this.getGasContext();
+
+    // Check if API key is configured
+    if (!apiKey || apiKey.trim() === '') {
+      console.warn('⚠️  No API key - using fallback response');
+      return this.getFallbackRecommendation(gasContext);
+    }
 
     // Build prompt
     const systemPrompt = `You are GasGuard Mentor, an AI assistant that helps users optimize gas costs on the Flare Network.
@@ -127,16 +141,12 @@ Always respond with valid JSON in this exact format:
   ]
 }`;
 
-    // Check if API key is configured
-    if (!apiKey || apiKey.trim() === '') {
-      console.warn('⚠️  AI API key not configured. Using fallback recommendation.');
-      return this.getFallbackRecommendation(gasContext);
-    }
-
     try {
+      console.log(`🤖 Calling ${isGroq ? 'Groq' : 'OpenAI'} API...`);
+
       // Use appropriate model based on provider
-      const model = isGroq ? 'llama-3.1-70b-versatile' : 'gpt-4';
-      
+      const model = isGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';
+
       const completion = await openai.chat.completions.create({
         model: model,
         messages: [
@@ -149,32 +159,59 @@ Always respond with valid JSON in this exact format:
       });
 
       const responseContent = completion.choices[0].message.content;
+
       if (!responseContent) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error('Empty response from AI API');
       }
+
+      console.log(`✅ ${isGroq ? 'Groq' : 'OpenAI'} API response received`);
 
       const response = JSON.parse(responseContent) as AIResponse;
 
       // Validate response structure
       if (!response.recommendation || !response.reasoning) {
-        throw new Error('Invalid response format from OpenAI');
+        console.error('❌ Invalid response format:', response);
+        throw new Error('Invalid response format from AI API');
       }
 
       // Cache response (if Redis is available)
-      if (redisClient && redisClient.isOpen) {
-        await redisClient.setEx(cacheKey, this.cacheTTL, JSON.stringify(response));
+      if (redisClient && redisClient.isConnected()) {
+        try {
+          await redisClient.setEx(cacheKey, this.cacheTTL, JSON.stringify(response));
+        } catch (error) {
+          console.warn('⚠️  Cache write error (continuing):', error);
+        }
       }
 
       console.log(`✅ ${isGroq ? 'Groq' : 'OpenAI'} API call successful`);
       return response;
+
     } catch (error: any) {
       console.error(`❌ ${isGroq ? 'Groq' : 'OpenAI'} API Error:`, error.message || error);
-      console.error('Error details:', {
-        code: error.code,
-        status: error.status,
-        type: error.type,
-      });
+
+      // Log more details for debugging
+      if (error.response) {
+        console.error('API Error Response:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+        });
+      }
+
+      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        console.error('❌ Network error - cannot reach API endpoint');
+      }
+
+      if (error.status === 401) {
+        console.error('❌ Invalid API key - check your OPENAI_API_KEY in backend/.env');
+      }
+
+      if (error.status === 429) {
+        console.error('❌ Rate limit exceeded - too many requests');
+      }
+
       // Fallback to rule-based system
+      console.log('⚠️  Falling back to rule-based recommendations');
       return this.getFallbackRecommendation(gasContext);
     }
   }
@@ -205,7 +242,7 @@ Always respond with valid JSON in this exact format:
       console.error('Error fetching FDC historical data:', error);
     }
 
-    const gasPriceUSD = currentGas.gwei * 0.000000001 * 21000 * flrPrice.price; // Rough estimate
+    const gasPriceUSD = currentGas.gwei * 0.000000001 * 21000 * flrPrice.price;
 
     return {
       currentGas: currentGas.gwei,
@@ -223,13 +260,17 @@ Always respond with valid JSON in this exact format:
 
     let recommendation: 'EXECUTE_NOW' | 'WAIT' | 'SCHEDULE' = 'EXECUTE_NOW';
     let reasoning = '';
+    let savings = 0;
 
     if (isHighGas || isHighCongestion) {
       recommendation = 'WAIT';
-      reasoning = `Current gas is ${context.currentGas} Gwei (${isHighGas ? 'HIGH' : 'MEDIUM'}). Network congestion is ${context.congestion}%. Consider waiting for better conditions.`;
+      savings = context.gasPriceUSD * 0.4; // 40% potential savings
+      reasoning = `⚠️ **Using Fallback Mode** (Configure OPENAI_API_KEY for AI recommendations)\n\nCurrent gas is ${context.currentGas.toFixed(2)} Gwei (${isHighGas ? 'HIGH' : 'MEDIUM'}). Network congestion is ${context.congestion}%. Consider waiting for better conditions to save ~$${savings.toFixed(2)}.`;
     } else {
-      reasoning = `Current gas is ${context.currentGas} Gwei (LOW). Network congestion is ${context.congestion}%. Good time to execute.`;
+      reasoning = `⚠️ **Using Fallback Mode** (Configure OPENAI_API_KEY for AI recommendations)\n\nCurrent gas is ${context.currentGas.toFixed(2)} Gwei (LOW). Network congestion is ${context.congestion}%. Good time to execute.`;
     }
+
+    const targetTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
 
     return {
       recommendation,
@@ -240,11 +281,23 @@ Always respond with valid JSON in this exact format:
         flrPrice: context.flrPrice,
         congestion: context.congestion,
       },
+      prediction: recommendation === 'WAIT' ? {
+        targetGas: context.currentGas * 0.7,
+        targetTime: targetTime.toISOString(),
+        confidence: 60,
+        timeToWait: '2 hours',
+      } : undefined,
+      savings: {
+        amount: savings,
+        currency: 'USD',
+        percentage: recommendation === 'WAIT' ? 40 : 0,
+      },
       actions: [
         {
           type: recommendation === 'EXECUTE_NOW' ? 'EXECUTE_NOW' : 'SCHEDULE',
-          label: recommendation === 'EXECUTE_NOW' ? 'Execute Now' : 'Schedule',
+          label: recommendation === 'EXECUTE_NOW' ? 'Execute Now' : 'Schedule for Later',
           cost: context.gasPriceUSD,
+          scheduledTime: recommendation === 'WAIT' ? targetTime.toISOString() : undefined,
         },
       ],
     };
@@ -252,4 +305,3 @@ Always respond with valid JSON in this exact format:
 }
 
 export default new AIAgentService();
-

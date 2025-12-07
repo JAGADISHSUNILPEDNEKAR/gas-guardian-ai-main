@@ -9,7 +9,7 @@ interface Message {
   timestamp?: Date;
 }
 
-interface ChatResponse {
+export interface ChatResponse {
   recommendation: 'EXECUTE_NOW' | 'WAIT' | 'SCHEDULE';
   reasoning: string;
   currentConditions: any;

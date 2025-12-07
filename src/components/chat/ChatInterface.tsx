@@ -68,24 +68,13 @@ export function ChatInterface() {
       }
 
       const response = await sendMessage(userInput, address || undefined);
-      
+
       // Format response
       let content = response.reasoning || '';
-      if (response.currentConditions) {
-        content = `**Current Gas:** ${response.currentConditions.gasPrice} gwei (~$${response.currentConditions.gasPriceUSD?.toFixed(2)})\n**FLR Price:** $${response.currentConditions.flrPrice?.toFixed(4)} (via FTSOv2)\n**Network Load:** ${response.currentConditions.congestion}%\n\n📊 **Recommendation: ${response.recommendation}**\n\n${response.reasoning}`;
-        
-        if (response.prediction) {
-          content += `\n\n**Prediction:**\n- Target Gas: ${response.prediction.targetGas} gwei\n- Target Time: ${response.prediction.targetTime}\n- Confidence: ${response.prediction.confidence}%`;
-        }
-        
-        if (response.savings) {
-          content += `\n\n💰 **Potential Savings:** $${response.savings.amount?.toFixed(2)} (${response.savings.percentage?.toFixed(1)}%)`;
-        }
-      }
 
       const actions = response.actions?.map((action: any) => ({
         label: action.label,
-        variant: action.type === 'EXECUTE_NOW' ? 'warning' : action.type === 'SCHEDULE' ? 'default' : 'secondary',
+        variant: (action.type === 'EXECUTE_NOW' ? 'warning' : action.type === 'SCHEDULE' ? 'default' : 'secondary') as "warning" | "default" | "secondary",
         icon: action.type === 'EXECUTE_NOW' ? Zap : action.type === 'SCHEDULE' ? Shield : Clock,
       })) || [];
 
@@ -96,7 +85,7 @@ export function ChatInterface() {
         timestamp: new Date(),
         actions: actions.length > 0 ? actions : undefined,
       };
-      
+
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: any) {
       console.error('Chat error:', err);
