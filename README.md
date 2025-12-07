@@ -51,7 +51,6 @@ In short: the app pulls gas and oracle signals directly from Flare services (FTS
 ---
 
 **Repository layout (important parts)**
-- `README.md` — you are here.
 - `src/` — frontend app (Vite + React + TypeScript).
 - `backend/` — backend API (TypeScript + Express + Prisma). Key files:
   - `backend/src/server.ts` — app entry
