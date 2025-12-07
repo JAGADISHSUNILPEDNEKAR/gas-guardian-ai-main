@@ -10,7 +10,7 @@ interface GasPrice {
 }
 
 export class GasOracleService {
-  private provider = getProvider('flare');
+  private provider = getProvider('coston2'); // Use Coston2 to match FTSO and User
   private cacheTTL = 12; // seconds (1 Flare block)
 
   async getCurrentGas(): Promise<GasPrice> {
@@ -22,7 +22,7 @@ export class GasOracleService {
 
     try {
       const feeData = await this.provider.getFeeData();
-      const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || BigInt(0);
+      const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || BigInt(25000000000); // Default to 25 gwei if null
       const gwei = Number(gasPrice) / 1e9;
 
       const result: GasPrice = {
@@ -40,7 +40,12 @@ export class GasOracleService {
       return result;
     } catch (error) {
       console.error('Error fetching gas price:', error);
-      throw new Error('Failed to fetch gas price');
+      // Fallback to avoid crashing the transaction scheduling
+      return {
+        gwei: 25,
+        wei: "25000000000",
+        timestamp: Date.now()
+      };
     }
   }
 

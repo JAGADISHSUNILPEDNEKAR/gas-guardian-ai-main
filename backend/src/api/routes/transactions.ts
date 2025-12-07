@@ -28,14 +28,14 @@ router.post('/schedule', authenticate, async (req: AuthRequest, res) => {
       user = await prisma.user.create({
         data: {
           walletAddress,
-          notificationPreferences: { browser: true },
+          notificationPreferences: JSON.stringify({ browser: true }),
         },
       });
     }
 
     // Calculate immediate cost for savings comparison
-    const gasOracle = new GasOracleService();
-    const ftsoService = new FTSOv2Service();
+    const gasOracle = GasOracleService;
+    const ftsoService = FTSOv2Service;
     const currentGas = await gasOracle.getCurrentGas();
     const flrPrice = await ftsoService.getPrice('FLR/USD');
     const immediateCost = currentGas.gwei * 0.000000001 * 21000 * flrPrice.price;
@@ -101,7 +101,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     // Check authorization
-    if (transaction.userId !== req.userId) {
+    // We compare with walletAddress because req.userId might be the wallet address itself (from auth middleware)
+    // while transaction.userId is the internal UUID
+    if (transaction.user.walletAddress.toLowerCase() !== req.walletAddress?.toLowerCase()) {
       res.status(403).json({ success: false, error: 'Unauthorized' });
       return;
     }

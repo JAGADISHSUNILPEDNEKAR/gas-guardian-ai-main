@@ -26,7 +26,7 @@ export function GasGuardPanel() {
   const { address, connected, signer } = useWallet();
   const { data: gasData, isLoading: gasLoading } = useGasPrice();
   const { getPrice } = useFTSOv2();
-  const { scheduleExecution, loading: guardLoading } = useGasGuard();
+  const { scheduleExecution, getTransactionStatus, loading: guardLoading } = useGasGuard();
 
   const [txType, setTxType] = useState<TransactionType>("swap");
   const [status, setStatus] = useState<GuardStatus>("idle");
@@ -115,21 +115,45 @@ export function GasGuardPanel() {
       const deadlineTimestamp = Math.floor(Date.now() / 1000) + (config.deadline * 60);
 
       // Schedule execution via GasGuard contract
-      const result = await scheduleExecution(
-        {
-          target: targetAddress,
-          data: transactionData,
-          value: value,
-          type: txType.toUpperCase(),
-        },
-        {
-          maxGasPrice: config.maxGasPrice * 1e9, // Convert to wei
-          minFlrPrice: config.minFlrPrice * 1e8, // Scale for contract
-          maxSlippage: config.slippage * 100, // Convert to basis points
-          deadline: deadlineTimestamp,
-        },
-        address
-      );
+      const scheduleExecutionWithRetry = async (retry = false): Promise<any> => {
+        try {
+          return await scheduleExecution(
+            {
+              target: targetAddress,
+              data: transactionData,
+              value: value,
+              type: txType.toUpperCase(),
+            },
+            {
+              maxGasPrice: config.maxGasPrice, // Send in Gwei
+              minFlrPrice: config.minFlrPrice, // Send in USD
+              maxSlippage: config.slippage,
+              deadline: deadlineTimestamp,
+            },
+            address
+          );
+        } catch (error: any) {
+          // If 401 Unauthorized and haven't retried yet
+          if (!retry && (error.message?.includes("401") || error.message?.includes("Unauthorized"))) {
+            console.log("Token expired, re-authenticating...");
+            localStorage.removeItem("token");
+
+            // Re-authenticate
+            const message = "Login to GasGuard";
+            const signature = await signer!.signMessage(message);
+            const loginRes = await authApi.login(address!, signature);
+
+            if (loginRes.success) {
+              localStorage.setItem("token", loginRes.data.token);
+              // Retry execution
+              return scheduleExecutionWithRetry(true);
+            }
+          }
+          throw error;
+        }
+      };
+
+      const result = await scheduleExecutionWithRetry();
 
       if (result?.executionId) {
         setExecutionId(result.executionId);
@@ -151,6 +175,37 @@ export function GasGuardPanel() {
       });
     }
   };
+
+  // Poll for status updates
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (executionId && (status === "waiting" || status === "executing")) {
+      const checkStatus = async () => {
+        try {
+          const txStatus = await getTransactionStatus(executionId);
+
+          if (txStatus.status === "COMPLETED") {
+            setStatus("completed");
+          } else if (txStatus.status === "FAILED") {
+            setStatus("failed");
+          } else if (txStatus.status === "SCHEDULED" || txStatus.status === "MONITORING") {
+            // Keep waiting
+            if (status !== "waiting" && status !== "executing") {
+              setStatus("waiting");
+            }
+          }
+        } catch (error) {
+          console.error("Error polling status:", error);
+          // Don't fail immediately on poll error, just retry
+        }
+      };
+
+      checkStatus(); // Initial check
+      interval = setInterval(checkStatus, 5000); // Poll every 5s
+    }
+    return () => clearInterval(interval);
+  }, [executionId, status, getTransactionStatus]);
 
   const statusConfig = {
     idle: { icon: Shield, label: "Ready", color: "text-muted-foreground" },
