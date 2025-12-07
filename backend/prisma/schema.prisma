@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -15,10 +15,10 @@ model User {
   walletAddress         String   @unique
   smartAccountAddress   String?
   email                 String?
-  notificationPreferences Json?  @default("{\"browser\": true, \"email\": false}")
-  totalSavedUsd         Decimal  @default(0) @db.Decimal(10, 2)
+  notificationPreferences String? @default("{\"browser\": true, \"email\": false}")
+  totalSavedUsd         Float    @default(0)
   transactionCount      Int      @default(0)
-  optimalExecutionRate  Decimal  @default(0) @db.Decimal(5, 2)
+  optimalExecutionRate  Float    @default(0)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   lastActiveAt          DateTime?
@@ -58,10 +58,10 @@ model Transaction {
   blockNumber           BigInt?
 
   // Savings Calculation
-  immediateCostUsd      Decimal? @db.Decimal(10, 4)
-  actualCostUsd         Decimal? @db.Decimal(10, 4)
-  savedUsd              Decimal? @db.Decimal(10, 4)
-  savingsPercentage     Decimal? @db.Decimal(5, 2)
+  immediateCostUsd      Float?
+  actualCostUsd         Float?
+  savedUsd              Float?
+  savingsPercentage     Float?
 
   // Timestamps
   scheduledAt           DateTime @default(now())
@@ -79,8 +79,8 @@ model Alert {
   id                    String   @id @default(uuid())
   userId                String
   alertType             String
-  condition             Json
-  notificationChannels  Json     @default("{\"browser\": true}")
+  condition             String
+  notificationChannels  String   @default("{\"browser\": true}")
   status                String   @default("ACTIVE") // ACTIVE, DELETED
   lastTriggeredAt       DateTime?
   triggerCount          Int      @default(0)
@@ -107,7 +107,7 @@ model AlertTrigger {
 
 model GasHistory {
   id                    String   @id @default(uuid())
-  gasPrice              Decimal  @db.Decimal(10, 2)
+  gasPrice              Float
   timestamp             DateTime @default(now())
 
   @@index([timestamp])
@@ -117,7 +117,7 @@ model Leaderboard {
   id                    String   @id @default(uuid())
   userId                String   @unique
   rank                  Int
-  totalSaved            Decimal  @db.Decimal(10, 2)
+  totalSaved            Float
   transactionCount      Int
   updatedAt             DateTime @updatedAt
 
@@ -129,7 +129,7 @@ model Savings {
   id                    String   @id @default(uuid())
   userId                String
   transactionId         String?
-  amount                Decimal  @db.Decimal(10, 4)
+  amount                Float
   currency              String   @default("USD")
   createdAt             DateTime @default(now())
 
@@ -140,7 +140,7 @@ model Savings {
 model Conversation {
   id                    String   @id @default(uuid())
   userId                String
-  messages              Json
+  messages              String
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -168,7 +168,7 @@ model ModelMetadata {
   modelType             String
   lastTrained           DateTime
   version               String
-  accuracy              Decimal? @db.Decimal(5, 4)
-  metadata              Json?
+  accuracy              Float?
+  metadata              String?
 }
 

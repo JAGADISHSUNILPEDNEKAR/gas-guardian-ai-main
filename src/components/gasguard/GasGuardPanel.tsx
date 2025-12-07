@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Shield, Fuel, DollarSign, Clock, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useGasPrice } from "@/hooks/useGasPrice";
+import { useFTSOv2 } from "@/hooks/useFTSOv2";
+import { useGasGuard } from "@/hooks/useGasGuard";
+import { useWallet } from "@/hooks/useWallet";
+import { toast } from "@/hooks/use-toast";
 
 type TransactionType = "swap" | "deploy" | "mint";
 type GuardStatus = "idle" | "waiting" | "executing" | "completed" | "failed";
@@ -17,29 +22,112 @@ interface GuardConfig {
 }
 
 export function GasGuardPanel() {
+  const { address, connected } = useWallet();
+  const { data: gasData, isLoading: gasLoading } = useGasPrice();
+  const { getPrice } = useFTSOv2();
+  const { scheduleExecution, loading: guardLoading } = useGasGuard();
+  
   const [txType, setTxType] = useState<TransactionType>("swap");
   const [status, setStatus] = useState<GuardStatus>("idle");
+  const [executionId, setExecutionId] = useState<string | null>(null);
   const [config, setConfig] = useState<GuardConfig>({
     maxGasPrice: 15,
     minFlrPrice: 0.02,
     slippage: 0.5,
     deadline: 30,
   });
+  const [flrPrice, setFlrPrice] = useState<number>(0.025);
 
-  const currentGas = 18;
-  const currentFlrPrice = 0.0234;
+  // Fetch real-time FLR price
+  useEffect(() => {
+    const fetchPrice = async () => {
+      try {
+        const priceData = await getPrice('FLR/USD');
+        setFlrPrice(priceData.price);
+      } catch (error) {
+        console.error('Error fetching FLR price:', error);
+      }
+    };
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 12000); // Every 12 seconds
+    return () => clearInterval(interval);
+  }, [getPrice]);
+
+  const currentGas = gasData?.data?.gasPrice?.gwei || 0;
+  const currentFlrPrice = flrPrice;
 
   const conditionsMet = currentGas <= config.maxGasPrice && currentFlrPrice >= config.minFlrPrice;
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
+    if (!connected || !address) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet first",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setStatus("waiting");
-    // Simulate condition check
-    setTimeout(() => {
-      if (conditionsMet) {
-        setStatus("executing");
-        setTimeout(() => setStatus("completed"), 2000);
+
+    try {
+      // Prepare transaction data based on type
+      let targetAddress = "";
+      let transactionData = "0x";
+      let value = "0";
+
+      // For demo, we'll use a simple transaction
+      // In production, this would be based on actual swap/deploy/mint logic
+      if (txType === "swap") {
+        targetAddress = "0x0000000000000000000000000000000000000000"; // Placeholder
+        transactionData = "0x"; // Placeholder swap data
+      } else if (txType === "deploy") {
+        targetAddress = "0x0000000000000000000000000000000000000000"; // Placeholder
+        transactionData = "0x"; // Contract bytecode
+      } else if (txType === "mint") {
+        targetAddress = "0x0000000000000000000000000000000000000000"; // Placeholder
+        transactionData = "0x"; // Mint function call
       }
-    }, 1500);
+
+      // Calculate deadline timestamp
+      const deadlineTimestamp = Math.floor(Date.now() / 1000) + (config.deadline * 60);
+
+      // Schedule execution via GasGuard contract
+      const result = await scheduleExecution(
+        {
+          target: targetAddress,
+          data: transactionData,
+          value: value,
+          type: txType.toUpperCase(),
+        },
+        {
+          maxGasPrice: config.maxGasPrice * 1e9, // Convert to wei
+          minFlrPrice: config.minFlrPrice * 1e8, // Scale for contract
+          maxSlippage: config.slippage * 100, // Convert to basis points
+          deadline: deadlineTimestamp,
+        },
+        address
+      );
+
+      if (result?.executionId) {
+        setExecutionId(result.executionId);
+        setStatus("waiting");
+        toast({
+          title: "GasGuard Activated",
+          description: `Execution scheduled. ID: ${result.executionId.slice(0, 10)}...`,
+        });
+      } else {
+        throw new Error("Failed to schedule execution");
+      }
+    } catch (error: any) {
+      console.error("Error activating GasGuard:", error);
+      setStatus("failed");
+      toast({
+        title: "Activation Failed",
+        description: error.message || "Failed to activate GasGuard protection",
+        variant: "destructive",
+      });
+    }
   };
 
   const statusConfig = {
@@ -178,11 +266,26 @@ export function GasGuardPanel() {
             size="lg"
             className="w-full"
             onClick={handleActivate}
-            disabled={status !== "idle"}
+            disabled={status !== "idle" || !connected || guardLoading}
           >
-            <Shield className="h-5 w-5 mr-2" />
-            Activate GasGuard Protection
+            {guardLoading ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Activating...
+              </>
+            ) : (
+              <>
+                <Shield className="h-5 w-5 mr-2" />
+                Activate GasGuard Protection
+              </>
+            )}
           </Button>
+          
+          {!connected && (
+            <p className="text-sm text-center text-muted-foreground">
+              Connect your wallet to activate GasGuard
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -235,16 +338,22 @@ export function GasGuardPanel() {
                 <span className="text-sm">Gas Price</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className={cn(
-                  "text-sm font-mono",
-                  currentGas <= config.maxGasPrice ? "text-success" : "text-destructive"
-                )}>
-                  {currentGas} / {config.maxGasPrice} gwei
-                </span>
-                {currentGas <= config.maxGasPrice ? (
-                  <CheckCircle2 className="h-4 w-4 text-success" />
+                {gasLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                  <>
+                    <span className={cn(
+                      "text-sm font-mono",
+                      currentGas <= config.maxGasPrice ? "text-success" : "text-destructive"
+                    )}>
+                      {currentGas.toFixed(2)} / {config.maxGasPrice} gwei
+                    </span>
+                    {currentGas <= config.maxGasPrice ? (
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -252,7 +361,7 @@ export function GasGuardPanel() {
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">FLR Price</span>
+                <span className="text-sm">FLR Price (FTSOv2)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={cn(
@@ -268,6 +377,13 @@ export function GasGuardPanel() {
                 )}
               </div>
             </div>
+            
+            {executionId && (
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                <div className="text-xs text-muted-foreground mb-1">Execution ID</div>
+                <div className="text-sm font-mono break-all">{executionId}</div>
+              </div>
+            )}
           </div>
 
           {/* Estimated Savings */}

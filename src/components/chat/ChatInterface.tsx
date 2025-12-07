@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Send, Sparkles, Shield, Clock, Zap, User, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChat } from "@/hooks/useChat";
+import { useWallet } from "@/hooks/useWallet";
 
 interface Message {
   id: string;
@@ -29,8 +31,9 @@ const initialMessages: Message[] = [
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { sendMessage, loading: isLoading, error } = useChat();
+  const { address, connected } = useWallet();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,25 +55,59 @@ export function ChatInterface() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const userInput = input;
     setInput("");
-    setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Generate JWT token from wallet address (simple approach)
+      let token = localStorage.getItem('token');
+      if (!token && address) {
+        // Simple token generation (in production, use proper JWT)
+        token = btoa(JSON.stringify({ walletAddress: address, timestamp: Date.now() }));
+        localStorage.setItem('token', token);
+      }
+
+      const response = await sendMessage(userInput, address || undefined);
+      
+      // Format response
+      let content = response.reasoning || '';
+      if (response.currentConditions) {
+        content = `**Current Gas:** ${response.currentConditions.gasPrice} gwei (~$${response.currentConditions.gasPriceUSD?.toFixed(2)})\n**FLR Price:** $${response.currentConditions.flrPrice?.toFixed(4)} (via FTSOv2)\n**Network Load:** ${response.currentConditions.congestion}%\n\n📊 **Recommendation: ${response.recommendation}**\n\n${response.reasoning}`;
+        
+        if (response.prediction) {
+          content += `\n\n**Prediction:**\n- Target Gas: ${response.prediction.targetGas} gwei\n- Target Time: ${response.prediction.targetTime}\n- Confidence: ${response.prediction.confidence}%`;
+        }
+        
+        if (response.savings) {
+          content += `\n\n💰 **Potential Savings:** $${response.savings.amount?.toFixed(2)} (${response.savings.percentage?.toFixed(1)}%)`;
+        }
+      }
+
+      const actions = response.actions?.map((action: any) => ({
+        label: action.label,
+        variant: action.type === 'EXECUTE_NOW' ? 'warning' : action.type === 'SCHEDULE' ? 'default' : 'secondary',
+        icon: action.type === 'EXECUTE_NOW' ? Zap : action.type === 'SCHEDULE' ? Shield : Clock,
+      })) || [];
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `Based on current network conditions, here's my analysis:\n\n**Current Gas:** 18 gwei (~$0.42)\n**FLR Price:** $0.0234 (via FTSOv2)\n**Network Load:** 45% (moderate)\n\n📊 **Recommendation: WAIT 2 HOURS**\n\nHistorical data shows gas typically drops to 8-10 gwei around 4:00 AM UTC. By waiting, you could save approximately **$0.28** on this transaction.\n\nWould you like me to set up a GasGuard protected transaction that executes automatically when conditions are optimal?`,
+        content,
         timestamp: new Date(),
-        actions: [
-          { label: "Execute with GasGuard", variant: "default", icon: Shield },
-          { label: "Set Alert", variant: "secondary", icon: Clock },
-          { label: "Execute Now", variant: "warning", icon: Zap },
-        ],
+        actions: actions.length > 0 ? actions : undefined,
       };
+      
       setMessages((prev) => [...prev, assistantMessage]);
-      setIsLoading(false);
-    }, 1500);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: `❌ Error: ${err.message || 'Failed to get AI response. Please make sure:\n1. Backend server is running\n2. OpenAI API key is configured\n3. Wallet is connected'}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
   };
 
   const quickPrompts = [

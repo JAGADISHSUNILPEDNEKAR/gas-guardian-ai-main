@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { GasOracleService } from '../../services/GasOracleService.js';
 import { FTSOv2Service } from '../../services/FTSOv2Service.js';
 import { PredictionEngine } from '../../services/PredictionEngine.js';
+import { PythonGasMonitorService } from '../../services/PythonGasMonitorService.js';
 
 const router = Router();
 
@@ -10,8 +11,26 @@ router.get('/current', async (req, res) => {
   try {
     const gasOracle = new GasOracleService();
     const ftsoService = new FTSOv2Service();
+    const pythonMonitor = new PythonGasMonitorService();
 
-    const currentGas = await gasOracle.getCurrentGas();
+    // Try to get gas price from Python monitor first, fallback to GasOracleService
+    let currentGas;
+    let gasSource = 'blockchain';
+    
+    const pythonGas = pythonMonitor.getCurrentGas();
+    if (pythonGas) {
+      currentGas = {
+        gwei: pythonGas.gwei,
+        wei: pythonGas.wei,
+        timestamp: pythonGas.timestamp,
+      };
+      gasSource = 'python_monitor';
+      console.log('Using Python monitor gas data:', currentGas.gwei, 'Gwei');
+    } else {
+      currentGas = await gasOracle.getCurrentGas();
+      console.log('Using blockchain gas data:', currentGas.gwei, 'Gwei');
+    }
+
     const flrPrice = await ftsoService.getPrice('FLR/USD');
     const congestion = await gasOracle.getCongestionLevel();
 
@@ -48,6 +67,7 @@ router.get('/current', async (req, res) => {
         },
         status,
         trend,
+        source: gasSource, // Indicate data source
       },
     });
   } catch (error: any) {

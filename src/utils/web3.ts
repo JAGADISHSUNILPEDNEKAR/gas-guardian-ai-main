@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-const FLARE_RPC = import.meta.env.VITE_FLARE_RPC_URL || 'https://flare-api.flare.network/ext/bc/C/rpc';
+const FLARE_RPC = import.meta.env.VITE_FLARE_RPC_URL || 'https://coston2-api.flare.network/ext/C/rpc';
 
 // Get provider instance
 export const getProvider = (): ethers.Provider => {

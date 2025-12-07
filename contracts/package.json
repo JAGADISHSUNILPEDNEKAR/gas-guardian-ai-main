@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "GasGuard Mentor Smart Contracts",
   "scripts": {
-    "compile": "hardhat compile",
-    "test": "hardhat test",
-    "deploy:coston2": "hardhat run scripts/deploy/deployGasGuard.js --network coston2",
-    "deploy:flare": "hardhat run scripts/deploy/deployGasGuard.js --network flare",
+    "compile": "hardhat --config ../hardhat.config.cjs compile",
+    "test": "hardhat --config ../hardhat.config.cjs test",
+    "deploy:coston2": "hardhat --config ../hardhat.config.cjs run ../scripts/deploy/deployGasGuard.cjs --network coston2",
+    "deploy:flare": "hardhat --config ../hardhat.config.cjs run ../scripts/deploy/deployGasGuard.cjs --network flare",
     "node": "hardhat node"
   },
   "devDependencies": {

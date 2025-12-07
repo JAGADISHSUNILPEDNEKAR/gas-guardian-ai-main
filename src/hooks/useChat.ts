@@ -32,6 +32,12 @@ export function useChat() {
     setError(null);
 
     try {
+      const token = localStorage.getItem('token');
+      const headers: any = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const response = await axios.post(
         `${API_URL}/api/chat`,
         {
@@ -39,11 +45,7 @@ export function useChat() {
           walletAddress,
           context: context || { conversationId },
         },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
+        { headers }
       );
 
       if (response.data.success) {

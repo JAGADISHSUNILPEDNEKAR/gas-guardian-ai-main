@@ -16,15 +16,15 @@ interface PriceData {
 }
 
 export class FTSOv2Service {
-  private provider = getProvider('flare');
+  private provider = getProvider('coston2'); // Use Coston2 by default
   private contract: ethers.Contract;
-  private cacheTTL = 12; // seconds
+  private cacheTTL = 12; // seconds (Flare block time)
 
   constructor() {
-    const ftsoAddress = process.env.FTSO_ADDRESS;
-    if (!ftsoAddress) {
-      throw new Error('FTSO_ADDRESS not configured');
-    }
+    // Flare FTSOv2 Feed Publisher address
+    // For Coston2: 0x1000000000000000000000000000000000000003
+    // For Mainnet: 0x1000000000000000000000000000000000000003
+    const ftsoAddress = process.env.FTSO_ADDRESS || process.env.FTSO_CONTRACT_ADDRESS || '0x1000000000000000000000000000000000000003';
     this.contract = new ethers.Contract(ftsoAddress, FTSO_ABI, this.provider);
   }
 

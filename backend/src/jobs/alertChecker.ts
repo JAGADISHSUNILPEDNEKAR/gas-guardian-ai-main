@@ -1,47 +1,63 @@
 import { Queue, Worker } from 'bullmq';
-import redisClient from '../config/redis.js';
-import AlertService from '../services/AlertService.js';
 
-const alertQueue = new Queue('alert-checker', {
-  connection: process.env.REDIS_URL || 'redis://localhost:6379',
-});
+const isRedisEnabled = () => {
+  const redisUrl = process.env.REDIS_URL;
+  return redisUrl && 
+         redisUrl.trim() !== '' && 
+         redisUrl !== 'redis://localhost:6379' &&
+         redisUrl.toLowerCase() !== 'false' &&
+         redisUrl.toLowerCase() !== 'no';
+};
 
-export const alertCheckerWorker = new Worker(
-  'alert-checker',
-  async (job) => {
-    const alertService = new AlertService();
-    
-    try {
-      await alertService.checkAlerts();
-      console.log('Alert check completed');
-    } catch (error) {
-      console.error('Alert checker error:', error);
-      throw error;
-    }
-  },
-  {
-    connection: process.env.REDIS_URL || 'redis://localhost:6379',
-    limiter: {
-      max: 1,
-      duration: 12000, // Every block (12 seconds)
+let alertQueue: Queue | null = null;
+let alertCheckerWorker: Worker | null = null;
+
+if (isRedisEnabled()) {
+  const redisUrl = process.env.REDIS_URL!;
+  alertQueue = new Queue('alert-checker', {
+    connection: { url: redisUrl } as any,
+  });
+
+  alertCheckerWorker = new Worker(
+    'alert-checker',
+    async (job) => {
+      const AlertService = (await import('../services/AlertService.js')).default;
+      try {
+        await AlertService.checkAlerts();
+        console.log('Alert check completed');
+      } catch (error) {
+        console.error('Alert checker error:', error);
+        throw error;
+      }
     },
-  }
-);
+    {
+      connection: { url: redisUrl } as any,
+      limiter: {
+        max: 1,
+        duration: 12000,
+      },
+    }
+  );
+}
 
-// Schedule recurring job
 export const startAlertChecker = () => {
+  if (!isRedisEnabled() || !alertQueue) {
+    console.log('⚠️  Alert checker skipped (Redis disabled)');
+    return;
+  }
+
   alertQueue.add(
     'check-alerts',
     {},
     {
       repeat: {
-        every: 12000, // Every block
+        every: 12000,
       },
       removeOnComplete: true,
       removeOnFail: false,
     }
   );
 
-  console.log('Alert checker started');
+  console.log('✅ Alert checker started');
 };
 

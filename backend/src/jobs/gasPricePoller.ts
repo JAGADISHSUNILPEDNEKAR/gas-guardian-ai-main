@@ -1,53 +1,66 @@
 import { Queue, Worker } from 'bullmq';
-import redisClient from '../config/redis.js';
 import GasOracleService from '../services/GasOracleService.js';
 
-const gasPriceQueue = new Queue('gas-price-poller', {
-  connection: process.env.REDIS_URL || 'redis://localhost:6379',
-});
+// Check if Redis is enabled
+const isRedisEnabled = () => {
+  const redisUrl = process.env.REDIS_URL;
+  return redisUrl && 
+         redisUrl.trim() !== '' && 
+         redisUrl !== 'redis://localhost:6379' &&
+         redisUrl.toLowerCase() !== 'false' &&
+         redisUrl.toLowerCase() !== 'no';
+};
 
-// Poll every 12 seconds (Flare block time)
-export const gasPricePollerWorker = new Worker(
-  'gas-price-poller',
-  async (job) => {
-    const gasOracle = new GasOracleService();
-    
-    try {
-      // Fetch and store current gas price
-      const currentGas = await gasOracle.getCurrentGas();
-      
-      // Check for scheduled transactions that might be ready
-      // This would trigger execution checks in the GasGuard contract
-      
-      console.log(`Gas price polled: ${currentGas.gwei} Gwei`);
-    } catch (error) {
-      console.error('Gas price poller error:', error);
-      throw error;
-    }
-  },
-  {
-    connection: process.env.REDIS_URL || 'redis://localhost:6379',
-    limiter: {
-      max: 1,
-      duration: 12000, // 12 seconds
+let gasPriceQueue: Queue | null = null;
+let gasPricePollerWorker: Worker | null = null;
+
+// Only initialize if Redis is enabled
+if (isRedisEnabled()) {
+  const redisUrl = process.env.REDIS_URL!;
+  gasPriceQueue = new Queue('gas-price-poller', {
+    connection: { url: redisUrl } as any,
+  });
+
+  gasPricePollerWorker = new Worker(
+    'gas-price-poller',
+    async (job) => {
+      try {
+        const currentGas = await GasOracleService.getCurrentGas();
+        console.log(`Gas price polled: ${currentGas.gwei} Gwei`);
+      } catch (error) {
+        console.error('Gas price poller error:', error);
+        throw error;
+      }
     },
-  }
-);
+    {
+      connection: { url: redisUrl } as any,
+      limiter: {
+        max: 1,
+        duration: 12000,
+      },
+    }
+  );
+}
 
 // Schedule recurring job
 export const startGasPricePoller = () => {
+  if (!isRedisEnabled() || !gasPriceQueue) {
+    console.log('⚠️  Gas price poller skipped (Redis disabled)');
+    return;
+  }
+
   gasPriceQueue.add(
     'poll-gas-price',
     {},
     {
       repeat: {
-        every: 12000, // 12 seconds
+        every: 12000,
       },
       removeOnComplete: true,
       removeOnFail: false,
     }
   );
 
-  console.log('Gas price poller started');
+  console.log('✅ Gas price poller started');
 };
 

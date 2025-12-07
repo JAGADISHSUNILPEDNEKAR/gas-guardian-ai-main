@@ -23,11 +23,13 @@ interface CrossChainGasPrices {
 }
 
 export class FDCService {
-  private provider = getProvider('flare');
+  private provider = getProvider('coston2'); // Use Coston2 by default
   private contract: ethers.Contract | null = null;
 
   constructor() {
-    const fdcAddress = process.env.FDC_ADDRESS;
+    // Flare FDC Connector address
+    // For Coston2: 0x1000000000000000000000000000000000000004
+    const fdcAddress = process.env.FDC_ADDRESS || process.env.FDC_CONTRACT_ADDRESS || '0x1000000000000000000000000000000000000004';
     if (fdcAddress && fdcAddress !== '0x0000000000000000000000000000000000000000') {
       this.contract = new ethers.Contract(fdcAddress, FDC_ABI, this.provider);
     }

@@ -1,48 +1,59 @@
 import { Queue, Worker } from 'bullmq';
-import redisClient from '../config/redis.js';
-import FDCService from '../services/FDCService.js';
 
-const fdcQueue = new Queue('fdc-data-fetcher', {
-  connection: process.env.REDIS_URL || 'redis://localhost:6379',
-});
+const isRedisEnabled = () => {
+  const redisUrl = process.env.REDIS_URL;
+  return redisUrl && 
+         redisUrl.trim() !== '' && 
+         redisUrl !== 'redis://localhost:6379' &&
+         redisUrl.toLowerCase() !== 'false' &&
+         redisUrl.toLowerCase() !== 'no';
+};
 
-export const fdcDataFetcherWorker = new Worker(
-  'fdc-data-fetcher',
-  async (job) => {
-    const fdcService = new FDCService();
-    
-    try {
-      // Fetch historical gas patterns (30 days)
-      const history = await fdcService.getHistoricalGasPrices(30);
-      
-      // Fetch cross-chain gas prices
-      const crossChain = await fdcService.getCrossChainGasPrices();
-      
-      console.log(`FDC data fetched: ${history.length} historical points, ${Object.keys(crossChain).length} chains`);
-    } catch (error) {
-      console.error('FDC data fetcher error:', error);
-      // Don't throw - FDC might be unavailable
+let fdcQueue: Queue | null = null;
+let fdcDataFetcherWorker: Worker | null = null;
+
+if (isRedisEnabled()) {
+  const redisUrl = process.env.REDIS_URL!;
+  fdcQueue = new Queue('fdc-data-fetcher', {
+    connection: { url: redisUrl } as any,
+  });
+
+  fdcDataFetcherWorker = new Worker(
+    'fdc-data-fetcher',
+    async (job) => {
+      const FDCService = (await import('../services/FDCService.js')).default;
+      try {
+        const history = await FDCService.getHistoricalGasPrices(30);
+        const crossChain = await FDCService.getCrossChainGasPrices();
+        console.log(`FDC data fetched: ${history.length} historical points, ${Object.keys(crossChain).length} chains`);
+      } catch (error) {
+        console.error('FDC data fetcher error:', error);
+      }
+    },
+    {
+      connection: { url: redisUrl } as any,
     }
-  },
-  {
-    connection: process.env.REDIS_URL || 'redis://localhost:6379',
-  }
-);
+  );
+}
 
-// Schedule recurring job (hourly)
 export const startFDCDataFetcher = () => {
+  if (!isRedisEnabled() || !fdcQueue) {
+    console.log('⚠️  FDC data fetcher skipped (Redis disabled)');
+    return;
+  }
+
   fdcQueue.add(
     'fetch-fdc-data',
     {},
     {
       repeat: {
-        every: 3600000, // 1 hour
+        every: 3600000,
       },
       removeOnComplete: true,
       removeOnFail: false,
     }
   );
 
-  console.log('FDC data fetcher started');
+  console.log('✅ FDC data fetcher started');
 };
 

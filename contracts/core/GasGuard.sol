@@ -6,58 +6,41 @@ import "./PriceVerifier.sol";
 
 /**
  * @title GasGuard
- * @notice On-chain safety net for transaction execution
- * @dev Uses FTSOv2 for price verification and enforces user-defined safety parameters
+ * @notice Gas-optimized on-chain safety net for transaction execution
+ * @dev Uses Flare's FTSOv2 with packed storage and custom errors
  */
 contract GasGuard {
-    IFTSOFeedPublisher public immutable ftsoFeed;
+    // Custom errors (save ~50 gas per revert vs require strings)
+    error InvalidPriceVerifier();
+    error DeadlineInPast();
+    error InvalidTarget();
+    error InsufficientValue();
+    error ExecutionNotFound();
+    error RefundFailed();
+    
     PriceVerifier public immutable priceVerifier;
 
     struct SafetyParams {
-        uint256 maxGasPrice;      // Maximum acceptable gas (in wei)
-        uint256 minAssetPrice;    // Minimum FLR/USD price (scaled)
-        uint256 maxSlippage;      // Max slippage in basis points (100 = 1%)
-        uint256 deadline;         // Execution deadline timestamp
-        address target;           // Target contract to call
-        bytes data;               // Encoded function call
-        uint256 value;            // ETH/FLR to send
-        address refundAddress;    // Where to refund if conditions not met
+        address target;           // 20 bytes
+        address refundAddress;    // 20 bytes
+        uint64 deadline;          // 8 bytes (packed with above)
+        uint64 maxGasPrice;       // 8 bytes (sufficient for gas price)
+        uint64 minAssetPrice;     // 8 bytes (price in scaled format)
+        uint32 maxSlippage;       // 4 bytes (basis points, max 4.29B)
+        uint96 value;             // 12 bytes (ETH/FLR amount, supports up to 79B ETH)
+        bytes data;               // Dynamic
     }
 
     mapping(bytes32 => SafetyParams) public pendingExecutions;
-    mapping(address => uint256) public userSavings; // Track savings per user (in USD, scaled by 1e6)
+    mapping(address => uint256) public userSavings;
 
-    event ExecutionScheduled(
-        bytes32 indexed executionId,
-        address indexed user,
-        uint256 deadline
-    );
+    event ExecutionScheduled(bytes32 indexed executionId, address indexed user, uint64 deadline);
+    event SafeExecutionCompleted(bytes32 indexed executionId, address indexed user, uint256 gasUsed, uint256 flrPrice, uint256 savingsUSD);
+    event SafetyCheckFailed(bytes32 indexed executionId, string reason, uint256 currentValue, uint256 targetValue);
+    event RefundIssued(bytes32 indexed executionId, address indexed user, uint256 amount);
 
-    event SafeExecutionCompleted(
-        bytes32 indexed executionId,
-        address indexed user,
-        uint256 gasUsed,
-        uint256 flrPrice,
-        uint256 savingsUSD
-    );
-
-    event SafetyCheckFailed(
-        bytes32 indexed executionId,
-        string reason,
-        uint256 currentValue,
-        uint256 targetValue
-    );
-
-    event RefundIssued(
-        bytes32 indexed executionId,
-        address indexed user,
-        uint256 amount
-    );
-
-    constructor(address _ftsoFeed, address _priceVerifier) {
-        require(_ftsoFeed != address(0), "Invalid FTSO address");
-        require(_priceVerifier != address(0), "Invalid PriceVerifier address");
-        ftsoFeed = IFTSOFeedPublisher(_ftsoFeed);
+    constructor(address _priceVerifier) {
+        if (_priceVerifier == address(0)) revert InvalidPriceVerifier();
         priceVerifier = PriceVerifier(_priceVerifier);
     }
 
@@ -66,14 +49,10 @@ contract GasGuard {
      * @param params Safety parameters struct
      * @return executionId Unique identifier for this execution
      */
-    function scheduleExecution(SafetyParams calldata params)
-        external
-        payable
-        returns (bytes32)
-    {
-        require(params.deadline > block.timestamp, "Deadline in past");
-        require(params.target != address(0), "Invalid target");
-        require(msg.value >= params.value, "Insufficient value");
+    function scheduleExecution(SafetyParams calldata params) external payable returns (bytes32) {
+        if (params.deadline <= block.timestamp) revert DeadlineInPast();
+        if (params.target == address(0)) revert InvalidTarget();
+        if (msg.value < params.value) revert InsufficientValue();
 
         bytes32 executionId = keccak256(abi.encodePacked(
             msg.sender,
@@ -84,14 +63,14 @@ contract GasGuard {
         ));
 
         pendingExecutions[executionId] = SafetyParams({
+            target: params.target,
+            refundAddress: msg.sender,
+            deadline: params.deadline,
             maxGasPrice: params.maxGasPrice,
             minAssetPrice: params.minAssetPrice,
             maxSlippage: params.maxSlippage,
-            deadline: params.deadline,
-            target: params.target,
-            data: params.data,
             value: params.value,
-            refundAddress: msg.sender
+            data: params.data
         });
 
         emit ExecutionScheduled(executionId, msg.sender, params.deadline);
@@ -103,131 +82,111 @@ contract GasGuard {
      * @param executionId The execution to attempt
      * @return success Whether execution succeeded
      */
-    function executeIfSafe(bytes32 executionId)
-        external
-        returns (bool success)
-    {
+    function executeIfSafe(bytes32 executionId) external returns (bool success) {
         SafetyParams storage params = pendingExecutions[executionId];
-        require(params.deadline != 0, "Execution not found");
+        if (params.deadline == 0) revert ExecutionNotFound();
 
         // Check 1: Deadline not passed
         if (block.timestamp > params.deadline) {
-            emit SafetyCheckFailed(
-                executionId,
-                "Deadline passed",
-                block.timestamp,
-                params.deadline
-            );
+            emit SafetyCheckFailed(executionId, "Deadline passed", block.timestamp, params.deadline);
             _issueRefund(executionId);
             return false;
         }
 
-        // Check 2: Gas price acceptable
-        uint256 currentGas = block.basefee;
-        if (currentGas == 0) {
-            // Fallback for networks without EIP-1559
-            (bool success2, bytes memory result) = address(0).staticcall("");
-            // Try to get gas price from tx
-            currentGas = tx.gasprice;
-        }
-        
+        // Check 2: Gas price acceptable (use tx.gasprice directly)
+        uint256 currentGas = tx.gasprice;
         if (currentGas > params.maxGasPrice) {
-            emit SafetyCheckFailed(
-                executionId,
-                "Gas too high",
-                currentGas,
-                params.maxGasPrice
-            );
-            return false; // Don't refund yet, can retry
+            emit SafetyCheckFailed(executionId, "Gas too high", currentGas, params.maxGasPrice);
+            return false;
         }
 
         // Check 3: Asset price acceptable (via FTSOv2)
-        (uint256 flrPrice, uint8 decimals) = priceVerifier.getCurrentFLRPrice();
-        uint256 minPriceScaled = params.minAssetPrice;
-        
-        // Adjust for decimals if needed
-        if (decimals < 8) {
-            minPriceScaled = minPriceScaled / (10 ** (8 - decimals));
-        } else if (decimals > 8) {
-            minPriceScaled = minPriceScaled * (10 ** (decimals - 8));
-        }
-        
-        if (flrPrice < minPriceScaled) {
-            emit SafetyCheckFailed(
-                executionId,
-                "Price too low",
-                flrPrice,
-                minPriceScaled
-            );
-            return false; // Don't refund yet, can retry
+        (uint256 flrPrice, ) = priceVerifier.getCurrentFLRPrice();
+        if (flrPrice < params.minAssetPrice) {
+            emit SafetyCheckFailed(executionId, "Price too low", flrPrice, params.minAssetPrice);
+            return false;
         }
 
         // All checks passed - execute transaction
         uint256 gasBefore = gasleft();
-        (bool execSuccess, bytes memory returnData) = params.target.call{value: params.value}(
-            params.data
-        );
-        require(execSuccess, string(returnData));
+        (bool execSuccess, bytes memory returnData) = params.target.call{value: params.value}(params.data);
+        
+        if (!execSuccess) {
+            // Bubble up revert reason
+            if (returnData.length > 0) {
+                assembly {
+                    revert(add(32, returnData), mload(returnData))
+                }
+            }
+            revert("Execution failed");
+        }
+        
         uint256 gasUsed = gasBefore - gasleft();
 
-        // Calculate savings (simplified - would need to store immediate cost)
-        uint256 savingsUSD = _calculateSavings(executionId, currentGas, flrPrice, decimals);
-        userSavings[params.refundAddress] += savingsUSD;
+        // Calculate savings
+        uint256 savingsUSD = _calculateSavings(currentGas, flrPrice, gasUsed);
+        unchecked {
+            userSavings[params.refundAddress] += savingsUSD;
+        }
 
-        emit SafeExecutionCompleted(
-            executionId,
-            params.refundAddress,
-            gasUsed,
-            flrPrice,
-            savingsUSD
-        );
+        emit SafeExecutionCompleted(executionId, params.refundAddress, gasUsed, flrPrice, savingsUSD);
 
         // Clean up
         delete pendingExecutions[executionId];
         return true;
     }
 
-    function _calculateSavings(
-        bytes32 executionId,
-        uint256 actualGas,
-        uint256 flrPrice,
-        uint8 decimals
-    ) internal view returns (uint256) {
-        // Simplified calculation - in production, would compare with stored immediate cost
-        // For now, estimate 30% savings
-        uint256 gasCostWei = actualGas * 21000; // Standard transaction
-        uint256 gasCostFlr = gasCostWei / 1e18;
-        uint256 gasCostUSD = (gasCostFlr * flrPrice) / (10 ** decimals);
-        return (gasCostUSD * 30) / 100; // 30% savings estimate
+    /**
+     * @dev Calculate savings based on gas optimization
+     */
+    function _calculateSavings(uint256 actualGas, uint256 flrPriceInWei, uint256 gasUsed) internal pure returns (uint256) {
+        // Estimate 30% savings vs immediate execution
+        // Gas cost in Wei = actualGas * gasUsed
+        // USD cost = (gasCostWei * flrPriceInWei) / 1e18
+        uint256 gasCostWei = actualGas * gasUsed;
+        uint256 gasCostUSD = (gasCostWei * flrPriceInWei) / 1e18;
+        
+        // Return 30% of cost as savings (in Wei with 6 decimal precision)
+        return (gasCostUSD * 30) / 100;
     }
 
+    /**
+     * @dev Issue refund for expired/failed execution
+     */
     function _issueRefund(bytes32 executionId) internal {
         SafetyParams storage params = pendingExecutions[executionId];
         uint256 refundAmount = params.value;
         
-        // Deduct minimal gas cost (1000 wei)
+        // Deduct minimal processing fee
         if (refundAmount > 1000) {
-            refundAmount -= 1000;
+            unchecked {
+                refundAmount -= 1000;
+            }
         }
         
-        (bool success,) = params.refundAddress.call{value: refundAmount}("");
-        require(success, "Refund failed");
+        (bool success, ) = params.refundAddress.call{value: refundAmount}("");
+        if (!success) revert RefundFailed();
         
         emit RefundIssued(executionId, params.refundAddress, refundAmount);
         delete pendingExecutions[executionId];
     }
 
+    /**
+     * @notice Get user's accumulated savings
+     */
     function getUserSavings(address user) external view returns (uint256) {
         return userSavings[user];
     }
 
+    /**
+     * @notice Get execution status
+     */
     function getExecutionStatus(bytes32 executionId) external view returns (
         bool exists,
-        uint256 deadline,
+        uint64 deadline,
         address target
     ) {
         SafetyParams storage params = pendingExecutions[executionId];
         return (params.deadline != 0, params.deadline, params.target);
     }
 }
-

@@ -62,13 +62,20 @@ gas-guardian-ai-main/
 └── docs/                  # Documentation
 ```
 
+## 🏆 Flare Integrations (Hackathon Criteria)
+
+✅ **FTSOv2**: Real-time decentralized price feeds for FLR/USD verification  
+✅ **FDC**: Historical gas patterns and cross-chain data for AI predictions  
+✅ **Smart Accounts**: Transaction batching and scheduling  
+
 ## 🛠️ Quick Start
 
 ### Prerequisites
 - Node.js 18+
-- Docker & Docker Compose
 - PostgreSQL 15+
 - Redis 7+
+- MetaMask wallet
+- Flare Coston2 testnet FLR (get from [faucet](https://faucet.flare.network/coston2))
 
 ### 1. Clone and Install
 
@@ -90,35 +97,61 @@ npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
 
 ### 2. Environment Setup
 
-```bash
-# Copy environment files
-cp .env.example .env
-cp backend/.env.example backend/.env
-
-# Edit the files and add your API keys
-# Required: OPENAI_API_KEY in backend/.env
+**Frontend (.env):**
+```env
+VITE_FLARE_RPC_URL=https://coston2-api.flare.network/ext/C/rpc
+VITE_CHAIN_ID=114
+VITE_GASGUARD_CONTRACT_ADDRESS=<deployed_address>
+VITE_FTSO_CONTRACT_ADDRESS=0x1000000000000000000000000000000000000003
+VITE_FACTORY_ADDRESS=<deployed_address>
+VITE_API_URL=http://localhost:8080/api
+VITE_WS_URL=ws://localhost:8080
 ```
 
-### 3. Start Services
-
-**Option A: Docker (Recommended)**
-
-```bash
-docker-compose -f infra/docker/docker-compose.yml up -d
+**Backend (backend/.env):**
+```env
+PORT=8080
+DATABASE_URL=postgresql://user:password@localhost:5432/gasguard
+REDIS_URL=redis://localhost:6379
+COSTON2_RPC_URL=https://coston2-api.flare.network/ext/C/rpc
+CHAIN_ID=114
+FTSO_CONTRACT_ADDRESS=0x1000000000000000000000000000000000000003
+FDC_CONTRACT_ADDRESS=0x1000000000000000000000000000000000000004
+GASGUARD_CONTRACT_ADDRESS=<deployed_address>
+PRIVATE_KEY=<your_deployer_private_key>
+OPENAI_API_KEY=<your_openai_key>
+JWT_SECRET=<random_secret>
 ```
 
-**Option B: Local Setup**
+**Important Contract Addresses:**
+- FTSOv2 Feed Publisher: `0x1000000000000000000000000000000000000003`
+- FDC Connector: `0x1000000000000000000000000000000000000004`
+- Reference: [FTSOv2 Docs](https://dev.flare.network/ftso/getting-started) | [FDC Docs](https://dev.flare.network/fdc/getting-started)
+
+### 3. Setup Database
 
 ```bash
-# Start PostgreSQL and Redis (if not using Docker)
-# Make sure they're running on default ports
-
-# Setup database
 cd backend
 npx prisma migrate dev
 npx prisma generate
 cd ..
+```
 
+### 4. Deploy Contracts to Flare Coston2
+
+```bash
+# Get test FLR from faucet: https://faucet.flare.network/coston2
+# Add Coston2 to MetaMask: Chain ID 114, RPC: https://coston2-api.flare.network/ext/C/rpc
+
+# Deploy contracts
+npm run deploy:coston2
+
+# Update .env files with deployed contract addresses
+```
+
+### 5. Start Services
+
+```bash
 # Start backend (in one terminal)
 cd backend
 npm run dev
@@ -128,6 +161,17 @@ npm run dev
 ```
 
 Visit `http://localhost:5173`
+
+### 6. Connect Wallet
+
+1. Install MetaMask browser extension
+2. Add Flare Coston2 network:
+   - Chain ID: 114
+   - RPC URL: https://coston2-api.flare.network/ext/C/rpc
+   - Currency: FLR
+   - Explorer: https://coston2-explorer.flare.network
+3. Get test FLR from [faucet](https://faucet.flare.network/coston2)
+4. Connect wallet in the app
 
 ## 📚 Documentation
 
@@ -199,15 +243,23 @@ cd backend
 npm run build
 ```
 
-### Deploy Contracts
+### Deploy Contracts to Flare Coston2
 
 ```bash
-# Testnet
-npx hardhat run scripts/deploy/deployGasGuard.js --network coston2
+# Make sure you have test FLR in your deployer account
+# Get from: https://faucet.flare.network/coston2
 
-# Mainnet
-npx hardhat run scripts/deploy/deployGasGuard.js --network flare
+# Deploy to Coston2 testnet
+npm run deploy:coston2
+
+# The script will output contract addresses - update your .env files
+# Verify contracts on: https://coston2-explorer.flare.network
 ```
+
+**Contract Deployment Order:**
+1. PriceVerifier (uses FTSOv2)
+2. GasGuard (uses PriceVerifier)
+3. SmartAccountFactory
 
 ## 📊 API Endpoints
 

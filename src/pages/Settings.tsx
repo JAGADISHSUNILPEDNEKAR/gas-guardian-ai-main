@@ -3,9 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Wallet, Bell, Shield, Zap, ExternalLink } from "lucide-react";
+import { Wallet, Bell, Shield, Zap, ExternalLink, Copy, Check } from "lucide-react";
+import { useWallet } from "@/hooks/useWallet";
+import { formatAddress } from "@/utils/web3";
+import { useState } from "react";
 
 const Settings = () => {
+  const { address, balance, chainId, connected, connectWallet, disconnect, loading, error } = useWallet();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (address) {
+      navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const isCoston2 = chainId === 114;
+
   return (
     <MainLayout>
       <div className="mb-6">
@@ -31,19 +47,76 @@ const Settings = () => {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Status</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-2 w-2 rounded-full bg-warning" />
-                  <span className="text-sm">Not connected</span>
+          <CardContent className="space-y-4">
+            {connected && address ? (
+              <>
+                <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-muted-foreground">Status</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                      <span className="text-sm text-success">Connected</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-muted-foreground">Address</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono">{formatAddress(address)}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={handleCopy}
+                      >
+                        {copied ? (
+                          <Check className="h-3 w-3 text-success" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  {balance && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-muted-foreground">Balance</p>
+                      <span className="text-sm font-medium">{parseFloat(balance).toFixed(4)} FLR</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-muted-foreground">Network</p>
+                    <Badge variant={isCoston2 ? "success" : "warning"}>
+                      {isCoston2 ? "Coston2" : `Chain ${chainId}`}
+                    </Badge>
+                  </div>
                 </div>
+                <Button variant="outline" onClick={disconnect} className="w-full">
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <div className="p-4 rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Status</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="h-2 w-2 rounded-full bg-warning" />
+                      <span className="text-sm">Not connected</span>
+                    </div>
+                  </div>
+                </div>
+                {error && (
+                  <p className="text-sm text-destructive mb-3">{error}</p>
+                )}
+                <Button 
+                  variant="default" 
+                  onClick={connectWallet}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  {loading ? "Connecting..." : "Connect Wallet"}
+                </Button>
               </div>
-              <Button variant="default">
-                Connect Wallet
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -64,9 +137,13 @@ const Settings = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Active Network</p>
-                <p className="text-sm text-muted-foreground">Coston2 Testnet</p>
+                <p className="text-sm text-muted-foreground">
+                  {isCoston2 ? "Coston2 Testnet" : chainId ? `Chain ${chainId}` : "Not connected"}
+                </p>
               </div>
-              <Badge variant="success">Connected</Badge>
+              <Badge variant={isCoston2 ? "success" : "warning"}>
+                {isCoston2 ? "Connected" : "Wrong Network"}
+              </Badge>
             </div>
             <div className="flex items-center justify-between">
               <div>

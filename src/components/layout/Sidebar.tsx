@@ -13,8 +13,55 @@ import {
   Zap,
   TrendingUp,
   Trophy,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useWallet } from "@/hooks/useWallet";
+import { formatAddress } from "@/utils/web3";
+
+function WalletStatus() {
+  const { address, chainId, connected, connectWallet, loading } = useWallet();
+  const isCoston2 = chainId === 114;
+
+  if (connected && address) {
+    return (
+      <>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+          <span className="text-xs font-medium text-success">Wallet Connected</span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+          <span className="font-mono">{formatAddress(address, 4, 4)}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">
+            {isCoston2 ? "Coston2 Testnet" : `Chain ${chainId}`}
+          </span>
+          <Zap className={cn("h-3 w-3", isCoston2 ? "text-primary" : "text-warning")} />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="h-2 w-2 rounded-full bg-warning" />
+        <span className="text-xs font-medium text-warning">Not Connected</span>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full mt-2"
+        onClick={connectWallet}
+        disabled={loading}
+      >
+        <Wallet className="h-3 w-3 mr-2" />
+        {loading ? "Connecting..." : "Connect"}
+      </Button>
+    </>
+  );
+}
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -73,17 +120,10 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Status Card */}
+      {/* Wallet Status Card */}
       {!collapsed && (
         <div className="m-3 rounded-xl glass p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            <span className="text-xs font-medium text-success">Flare Connected</span>
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Coston2 Testnet</span>
-            <Zap className="h-3 w-3 text-primary" />
-          </div>
+          <WalletStatus />
         </div>
       )}
 

@@ -2,9 +2,15 @@ import OpenAI from 'openai';
 import redisClient from '../config/redis.js';
 import { GasOracleService } from './GasOracleService.js';
 import { FTSOv2Service } from './FTSOv2Service.js';
+import { FDCService } from './FDCService.js';
+
+// Detect if using Groq (API key starts with 'gsk_') or OpenAI
+const apiKey = process.env.OPENAI_API_KEY || '';
+const isGroq = apiKey.startsWith('gsk_');
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: apiKey,
+  baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
 });
 
 interface GasContext {
@@ -51,11 +57,18 @@ export class AIAgentService {
     walletAddress?: string,
     context?: any
   ): Promise<AIResponse> {
-    // Check cache
+    // Check cache (if Redis is available)
     const cacheKey = `ai:${Buffer.from(userMessage).toString('base64')}`;
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
+    if (redisClient && redisClient.isOpen) {
+      try {
+        const cached = await redisClient.get(cacheKey);
+        if (cached) {
+          console.log('✅ Using cached AI response');
+          return JSON.parse(cached);
+        }
+      } catch (error) {
+        console.warn('⚠️  Cache read error (continuing):', error);
+      }
     }
 
     // Get current gas context
@@ -75,6 +88,13 @@ Current Context:
 - Cost in USD: $${gasContext.gasPriceUSD.toFixed(4)}
 - FLR Price: $${gasContext.flrPrice.toFixed(4)} (via FTSOv2)
 - Network Congestion: ${gasContext.congestion}%
+${gasContext.historicalPattern ? `
+Historical Patterns (from FDC - 30 days):
+- Average Gas: ${gasContext.historicalPattern.averageGas.toFixed(2)} Gwei
+- Min Gas: ${gasContext.historicalPattern.minGas.toFixed(2)} Gwei
+- Max Gas: ${gasContext.historicalPattern.maxGas.toFixed(2)} Gwei
+- Trend: ${gasContext.historicalPattern.trend}
+` : ''}
 
 Always respond with valid JSON in this exact format:
 {
@@ -107,9 +127,18 @@ Always respond with valid JSON in this exact format:
   ]
 }`;
 
+    // Check if API key is configured
+    if (!apiKey || apiKey.trim() === '') {
+      console.warn('⚠️  AI API key not configured. Using fallback recommendation.');
+      return this.getFallbackRecommendation(gasContext);
+    }
+
     try {
+      // Use appropriate model based on provider
+      const model = isGroq ? 'llama-3.1-70b-versatile' : 'gpt-4';
+      
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4',
+        model: model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
@@ -119,14 +148,32 @@ Always respond with valid JSON in this exact format:
         max_tokens: 1000,
       });
 
-      const response = JSON.parse(completion.choices[0].message.content || '{}') as AIResponse;
+      const responseContent = completion.choices[0].message.content;
+      if (!responseContent) {
+        throw new Error('Empty response from OpenAI');
+      }
 
-      // Cache response
-      await redisClient.setEx(cacheKey, this.cacheTTL, JSON.stringify(response));
+      const response = JSON.parse(responseContent) as AIResponse;
 
+      // Validate response structure
+      if (!response.recommendation || !response.reasoning) {
+        throw new Error('Invalid response format from OpenAI');
+      }
+
+      // Cache response (if Redis is available)
+      if (redisClient && redisClient.isOpen) {
+        await redisClient.setEx(cacheKey, this.cacheTTL, JSON.stringify(response));
+      }
+
+      console.log(`✅ ${isGroq ? 'Groq' : 'OpenAI'} API call successful`);
       return response;
-    } catch (error) {
-      console.error('OpenAI API Error:', error);
+    } catch (error: any) {
+      console.error(`❌ ${isGroq ? 'Groq' : 'OpenAI'} API Error:`, error.message || error);
+      console.error('Error details:', {
+        code: error.code,
+        status: error.status,
+        type: error.type,
+      });
       // Fallback to rule-based system
       return this.getFallbackRecommendation(gasContext);
     }
@@ -135,10 +182,28 @@ Always respond with valid JSON in this exact format:
   private async getGasContext(): Promise<GasContext> {
     const gasOracle = new GasOracleService();
     const ftsoService = new FTSOv2Service();
+    const fdcService = new FDCService();
 
     const currentGas = await gasOracle.getCurrentGas();
     const flrPrice = await ftsoService.getPrice('FLR/USD');
     const congestion = await gasOracle.getCongestionLevel();
+
+    // Get historical patterns from FDC (30-day data for AI predictions)
+    let historicalPattern = null;
+    try {
+      const history = await fdcService.getHistoricalGasPrices(30);
+      if (history.length > 0) {
+        historicalPattern = {
+          dataPoints: history.length,
+          averageGas: history.reduce((sum, h) => sum + h.gasPrice, 0) / history.length,
+          minGas: Math.min(...history.map(h => h.gasPrice)),
+          maxGas: Math.max(...history.map(h => h.gasPrice)),
+          trend: history.length > 1 ? (history[history.length - 1].gasPrice > history[0].gasPrice ? 'RISING' : 'FALLING') : 'STABLE',
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching FDC historical data:', error);
+    }
 
     const gasPriceUSD = currentGas.gwei * 0.000000001 * 21000 * flrPrice.price; // Rough estimate
 
@@ -147,6 +212,7 @@ Always respond with valid JSON in this exact format:
       gasPriceUSD,
       flrPrice: flrPrice.price,
       congestion,
+      historicalPattern,
     };
   }
 

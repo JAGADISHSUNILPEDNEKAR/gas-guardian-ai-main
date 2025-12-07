@@ -16,7 +16,7 @@ Solidity smart contracts for GasGuard Mentor.
 npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
 ```
 
-2. Configure networks in `hardhat.config.js`
+2. Configure networks in `hardhat.config.cjs`
 
 3. Compile:
 ```bash

@@ -1,23 +1,21 @@
 -- CreateTable
 CREATE TABLE "User" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "walletAddress" TEXT NOT NULL,
     "smartAccountAddress" TEXT,
     "email" TEXT,
-    "notificationPreferences" JSONB DEFAULT '{"browser": true, "email": false}',
-    "totalSavedUsd" DECIMAL(10,2) NOT NULL DEFAULT 0,
+    "notificationPreferences" TEXT DEFAULT '{"browser": true, "email": false}',
+    "totalSavedUsd" REAL NOT NULL DEFAULT 0,
     "transactionCount" INTEGER NOT NULL DEFAULT 0,
-    "optimalExecutionRate" DECIMAL(5,2) NOT NULL DEFAULT 0,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "lastActiveAt" TIMESTAMP(3),
-
-    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+    "optimalExecutionRate" REAL NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "lastActiveAt" DATETIME
 );
 
 -- CreateTable
 CREATE TABLE "Transaction" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "executionId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "status" TEXT NOT NULL,
@@ -25,7 +23,7 @@ CREATE TABLE "Transaction" (
     "maxGasPrice" BIGINT NOT NULL,
     "minAssetPrice" BIGINT,
     "maxSlippage" INTEGER,
-    "deadline" TIMESTAMP(3) NOT NULL,
+    "deadline" DATETIME NOT NULL,
     "targetAddress" TEXT NOT NULL,
     "transactionData" TEXT NOT NULL,
     "value" TEXT NOT NULL DEFAULT '0',
@@ -34,108 +32,95 @@ CREATE TABLE "Transaction" (
     "gasUsed" BIGINT,
     "txHash" TEXT,
     "blockNumber" BIGINT,
-    "immediateCostUsd" DECIMAL(10,4),
-    "actualCostUsd" DECIMAL(10,4),
-    "savedUsd" DECIMAL(10,4),
-    "savingsPercentage" DECIMAL(5,2),
-    "scheduledAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "executedAt" TIMESTAMP(3),
-    "completedAt" TIMESTAMP(3),
-
-    CONSTRAINT "Transaction_pkey" PRIMARY KEY ("id")
+    "immediateCostUsd" REAL,
+    "actualCostUsd" REAL,
+    "savedUsd" REAL,
+    "savingsPercentage" REAL,
+    "scheduledAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "executedAt" DATETIME,
+    "completedAt" DATETIME,
+    CONSTRAINT "Transaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "Alert" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
     "alertType" TEXT NOT NULL,
-    "condition" JSONB NOT NULL,
-    "notificationChannels" JSONB NOT NULL DEFAULT '{"browser": true}',
+    "condition" TEXT NOT NULL,
+    "notificationChannels" TEXT NOT NULL DEFAULT '{"browser": true}',
     "status" TEXT NOT NULL DEFAULT 'ACTIVE',
-    "lastTriggeredAt" TIMESTAMP(3),
+    "lastTriggeredAt" DATETIME,
     "triggerCount" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Alert_pkey" PRIMARY KEY ("id")
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Alert_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "AlertTrigger" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "alertId" TEXT NOT NULL,
-    "triggeredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "AlertTrigger_pkey" PRIMARY KEY ("id")
+    "triggeredAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "AlertTrigger_alertId_fkey" FOREIGN KEY ("alertId") REFERENCES "Alert" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "GasHistory" (
-    "id" TEXT NOT NULL,
-    "gasPrice" DECIMAL(10,2) NOT NULL,
-    "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "GasHistory_pkey" PRIMARY KEY ("id")
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "gasPrice" REAL NOT NULL,
+    "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
 CREATE TABLE "Leaderboard" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
     "rank" INTEGER NOT NULL,
-    "totalSaved" DECIMAL(10,2) NOT NULL,
+    "totalSaved" REAL NOT NULL,
     "transactionCount" INTEGER NOT NULL,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Leaderboard_pkey" PRIMARY KEY ("id")
+    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "Savings" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
     "transactionId" TEXT,
-    "amount" DECIMAL(10,4) NOT NULL,
+    "amount" REAL NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Savings_pkey" PRIMARY KEY ("id")
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
 CREATE TABLE "Conversation" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
-    "messages" JSONB NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Conversation_pkey" PRIMARY KEY ("id")
+    "messages" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Conversation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "Notification" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "message" TEXT NOT NULL,
     "read" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
 CREATE TABLE "ModelMetadata" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
     "modelType" TEXT NOT NULL,
-    "lastTrained" TIMESTAMP(3) NOT NULL,
+    "lastTrained" DATETIME NOT NULL,
     "version" TEXT NOT NULL,
-    "accuracy" DECIMAL(5,4),
-    "metadata" JSONB,
-
-    CONSTRAINT "ModelMetadata_pkey" PRIMARY KEY ("id")
+    "accuracy" REAL,
+    "metadata" TEXT
 );
 
 -- CreateIndex
@@ -197,18 +182,3 @@ CREATE INDEX "Notification_userId_idx" ON "Notification"("userId");
 
 -- CreateIndex
 CREATE INDEX "Notification_read_idx" ON "Notification"("read");
-
--- AddForeignKey
-ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Alert" ADD CONSTRAINT "Alert_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AlertTrigger" ADD CONSTRAINT "AlertTrigger_alertId_fkey" FOREIGN KEY ("alertId") REFERENCES "Alert"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Conversation" ADD CONSTRAINT "Conversation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
