@@ -1,5 +1,4 @@
 {
-  "commands": {
-    "start": "cd backend && npm install && npm run start"
-  }
+  "start": "npm --prefix backend start",
+  "build": "npm --prefix backend run build"
 }
