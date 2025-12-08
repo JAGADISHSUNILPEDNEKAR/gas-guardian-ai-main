@@ -25,6 +25,8 @@ Welcome! This repository contains Gas-Guard — a full-stack project that monito
 - Developers and projects that want to understand gas trends and optimize user experience.
 - Anyone interested in Flare network capabilities (FTSOv2, FDC, Smart Accounts).
 
+# Website Look
+
 <img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 16 PM" src="https://github.com/user-attachments/assets/57f077d9-831f-4e4a-a3c9-695247868284" />
 <img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 24 PM" src="https://github.com/user-attachments/assets/03624351-cabd-4ea1-864d-e6361db4179d" />
 <img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 36 PM" src="https://github.com/user-attachments/assets/14dc8ed1-2c67-410f-9838-0166b8a48e7c" />
@@ -32,6 +34,13 @@ Welcome! This repository contains Gas-Guard — a full-stack project that monito
 <img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 50 PM" src="https://github.com/user-attachments/assets/16b84418-8079-4954-8070-a51f145a4ea8" />
 <img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 57 PM" src="https://github.com/user-attachments/assets/73f31f37-c844-4270-8c5b-3d07b9efba72" />
 <img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 18 08 PM" src="https://github.com/user-attachments/assets/114bfe42-bcd4-4624-aa25-70484118b57c" />
+
+# Screenshots of Functionalities in the website (Working)
+<img width="1440" height="900" alt="Screenshot 2025-12-08 at 7 28 37 PM" src="https://github.com/user-attachments/assets/3d48b5b0-5f8e-489d-a8c7-c3fefc98b445" />
+<img width="1440" height="900" alt="Screenshot 2025-12-08 at 7 29 16 PM" src="https://github.com/user-attachments/assets/2735cfc9-4c65-4a5e-880d-bf4e73d3d221" />
+<img width="1440" height="900" alt="Screenshot 2025-12-08 at 7 29 32 PM" src="https://github.com/user-attachments/assets/0e5c39b6-6594-41a7-9c8a-b96dc1e3c4a0" />
+<img width="1440" height="900" alt="Screenshot 2025-12-08 at 7 29 39 PM" src="https://github.com/user-attachments/assets/ecbc212b-2916-4c2d-8db3-8f89d08adef7" />
+<img width="1440" height="900" alt="Screenshot 2025-12-08 at 7 27 54 PM" src="https://github.com/user-attachments/assets/7d9b1577-a3e5-4fd2-b584-b3d01fa95469" />
 
 
 **Table of contents**
