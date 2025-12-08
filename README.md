@@ -25,6 +25,15 @@ Welcome! This repository contains Gas-Guard — a full-stack project that monito
 - Developers and projects that want to understand gas trends and optimize user experience.
 - Anyone interested in Flare network capabilities (FTSOv2, FDC, Smart Accounts).
 
+<img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 16 PM" src="https://github.com/user-attachments/assets/57f077d9-831f-4e4a-a3c9-695247868284" />
+<img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 24 PM" src="https://github.com/user-attachments/assets/03624351-cabd-4ea1-864d-e6361db4179d" />
+<img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 36 PM" src="https://github.com/user-attachments/assets/14dc8ed1-2c67-410f-9838-0166b8a48e7c" />
+<img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 43 PM" src="https://github.com/user-attachments/assets/4c6bb1e5-7f0b-4c96-bd66-fb8cd3d9c7db" />
+<img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 50 PM" src="https://github.com/user-attachments/assets/16b84418-8079-4954-8070-a51f145a4ea8" />
+<img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 17 57 PM" src="https://github.com/user-attachments/assets/73f31f37-c844-4270-8c5b-3d07b9efba72" />
+<img width="1440" height="900" alt="Screenshot 2025-12-07 at 1 18 08 PM" src="https://github.com/user-attachments/assets/114bfe42-bcd4-4624-aa25-70484118b57c" />
+
+
 **Table of contents**
 - Project highlights
 - Repo structure (key folders)
