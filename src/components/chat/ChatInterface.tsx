@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils";
 import { useChat } from "@/hooks/useChat";
 import { useWallet } from "@/hooks/useWallet";
 
+import axios from "axios";
+import { useToast } from "@/components/ui/use-toast";
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -16,6 +19,9 @@ interface Message {
     label: string;
     variant: "default" | "success" | "warning" | "secondary";
     icon: typeof Zap;
+    type?: string;
+    payload?: any;
+    onClick?: () => void;
   }[];
 }
 
@@ -33,7 +39,51 @@ export function ChatInterface() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { sendMessage, loading: isLoading, error } = useChat();
+  const { toast } = useToast();
   const { address, connected } = useWallet();
+
+  const handleAction = async (action: any) => {
+    if (!action.type) return;
+
+    if (action.type === 'SET_ALERT' && action.payload) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          toast({
+            variant: "destructive",
+            title: "Authentication Required",
+            description: "Please connect your wallet to set alerts.",
+          });
+          return;
+        }
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+        await axios.post(
+          `${API_URL}/api/alerts`,
+          {
+            alertType: action.payload.alertType,
+            condition: action.payload.condition,
+            notificationChannels: { browser: true }
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+
+        toast({
+          title: "Alert Set Successfully",
+          description: `We'll notify you when gas prices drop below ${action.payload.condition.value} Gwei.`,
+        });
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: "Failed to Set Alert",
+          description: error.response?.data?.error || "An error occurred while setting the alert.",
+        });
+      }
+    }
+  };
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -76,6 +126,8 @@ export function ChatInterface() {
         label: action.label,
         variant: (action.type === 'EXECUTE_NOW' ? 'warning' : action.type === 'SCHEDULE' ? 'default' : 'secondary') as "warning" | "default" | "secondary",
         icon: action.type === 'EXECUTE_NOW' ? Zap : action.type === 'SCHEDULE' ? Shield : Clock,
+        type: action.type,
+        payload: action.payload,
       })) || [];
 
       const assistantMessage: Message = {
@@ -171,6 +223,7 @@ export function ChatInterface() {
                         variant={action.variant}
                         size="sm"
                         className="gap-2"
+                        onClick={() => handleAction(action)}
                       >
                         <action.icon className="h-4 w-4" />
                         {action.label}

@@ -54,6 +54,7 @@ interface AIResponse {
     label: string;
     cost: number;
     scheduledTime?: string;
+    payload?: any;
   }>;
 }
 
@@ -136,7 +137,15 @@ Always respond with valid JSON in this exact format:
       "type": "EXECUTE_NOW" | "SCHEDULE" | "SET_ALERT",
       "label": "Button label",
       "cost": number,
-      "scheduledTime": "ISO 8601 timestamp (if SCHEDULE)"
+      "scheduledTime": "ISO 8601 timestamp (if SCHEDULE)",
+      "payload": {
+        "alertType": "gas_price",
+        "condition": {
+          "type": "gas_price",
+          "operator": "lt" | "lte",
+          "value": number
+        }
+      }
     }
   ]
 }`;
@@ -271,6 +280,33 @@ Always respond with valid JSON in this exact format:
     }
 
     const targetTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+    const targetThreshold = Math.max(1, Math.floor(context.currentGas * 0.8));
+
+    const actions: any[] = [
+      {
+        type: recommendation === 'EXECUTE_NOW' ? 'EXECUTE_NOW' : 'SCHEDULE',
+        label: recommendation === 'EXECUTE_NOW' ? 'Execute Now' : 'Schedule for Later',
+        cost: context.gasPriceUSD,
+        scheduledTime: recommendation === 'WAIT' ? targetTime.toISOString() : undefined,
+      }
+    ];
+
+    // Add alert action if waiting
+    if (recommendation === 'WAIT') {
+      actions.push({
+        type: 'SET_ALERT',
+        label: `Notify when gas < ${targetThreshold} Gwei`,
+        cost: 0,
+        payload: {
+          alertType: 'gas_price',
+          condition: {
+            type: 'gas_price',
+            operator: 'lt',
+            value: targetThreshold
+          }
+        }
+      });
+    }
 
     return {
       recommendation,
@@ -292,14 +328,7 @@ Always respond with valid JSON in this exact format:
         currency: 'USD',
         percentage: recommendation === 'WAIT' ? 40 : 0,
       },
-      actions: [
-        {
-          type: recommendation === 'EXECUTE_NOW' ? 'EXECUTE_NOW' : 'SCHEDULE',
-          label: recommendation === 'EXECUTE_NOW' ? 'Execute Now' : 'Schedule for Later',
-          cost: context.gasPriceUSD,
-          scheduledTime: recommendation === 'WAIT' ? targetTime.toISOString() : undefined,
-        },
-      ],
+      actions
     };
   }
 }

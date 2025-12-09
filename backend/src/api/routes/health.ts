@@ -26,8 +26,7 @@ router.get('/health', async (req, res) => {
 
   // Check Redis
   try {
-    if (redisClient.isOpen) {
-      await redisClient.ping();
+    if (redisClient.isConnected()) {
       health.services.redis = 'connected';
     } else {
       health.services.redis = 'disconnected';

@@ -72,7 +72,7 @@ export class AlertService {
 
     for (const alert of activeAlerts) {
       try {
-        const triggered = await this.evaluateCondition(alert.condition as AlertCondition);
+        const triggered = await this.evaluateCondition(alert.condition as unknown as AlertCondition);
 
         if (triggered) {
           // Check rate limiting (max 10/day)

@@ -15,7 +15,13 @@ export interface ChatResponse {
   currentConditions: any;
   prediction?: any;
   savings?: any;
-  actions: any[];
+  actions: {
+    type: string;
+    label: string;
+    cost?: number;
+    scheduledTime?: string;
+    payload?: any;
+  }[];
 }
 
 export function useChat() {

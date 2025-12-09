@@ -88,8 +88,7 @@ export class FDCService {
 
     if (!this.contract) {
       // Fallback: return Flare-only data
-      const GasOracleService = (await import('./GasOracleService.js')).default;
-      const gasOracle = new GasOracleService();
+      const gasOracle = (await import('./GasOracleService.js')).default;
       const current = await gasOracle.getCurrentGas();
       return { flare: current.gwei };
     }
@@ -99,8 +98,7 @@ export class FDCService {
 
     try {
       // Get Flare gas price
-      const GasOracleService = (await import('./GasOracleService.js')).default;
-      const gasOracle = new GasOracleService();
+      const gasOracle = (await import('./GasOracleService.js')).default;
       const flareGas = await gasOracle.getCurrentGas();
       gasPrices.flare = flareGas.gwei;
 

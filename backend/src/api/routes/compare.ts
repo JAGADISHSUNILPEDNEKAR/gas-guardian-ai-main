@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import FDCService from '../../services/FDCService.js';
-import FTSOv2Service from '../../services/FTSOv2Service.js';
+import { FDCService } from '../../services/FDCService.js';
+import { FTSOv2Service } from '../../services/FTSOv2Service.js';
 
 const router = Router();
 

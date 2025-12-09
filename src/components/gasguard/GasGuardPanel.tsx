@@ -10,6 +10,8 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "@/hooks/use-toast";
 import { authApi } from "@/services/api";
 import { ExecutionMonitor, GuardStatus, GuardConfig } from "./ExecutionMonitor";
+import { ExecutionHistory } from "./ExecutionHistory";
+import { useExecutions, Execution } from "@/hooks/useExecutions";
 
 type TransactionType = "swap" | "deploy" | "mint";
 
@@ -18,11 +20,18 @@ export function GasGuardPanel() {
   const { data: gasData, isLoading: gasLoading } = useGasPrice();
   const { getPrice } = useFTSOv2();
   const { scheduleExecution, getTransactionStatus, loading: guardLoading } = useGasGuard();
+  const { executions, loading: historyLoading, fetchExecutions, isAuthenticated } = useExecutions();
 
   const [txType, setTxType] = useState<TransactionType>("swap");
   const [status, setStatus] = useState<GuardStatus>("idle");
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [revertReason, setRevertReason] = useState<string | undefined>(undefined);
+  const [activeConfig, setActiveConfig] = useState<GuardConfig>({
+    maxGasPrice: 22,
+    minFlrPrice: 0.02,
+    slippage: 0.5,
+    deadline: 30,
+  });
   const [config, setConfig] = useState<GuardConfig>({
     maxGasPrice: 22,
     minFlrPrice: 0.02,
@@ -30,6 +39,9 @@ export function GasGuardPanel() {
     deadline: 30,
   });
   const [flrPrice, setFlrPrice] = useState<number>(0.025);
+
+  // Selected execution for historical view
+  const [selectedExecution, setSelectedExecution] = useState<Execution | null>(null);
 
   // Fetch real-time FLR price
   useEffect(() => {
@@ -61,6 +73,7 @@ export function GasGuardPanel() {
 
     setStatus("waiting");
     setRevertReason(undefined);
+    setSelectedExecution(null); // Clear selection on new activation
 
     try {
       // Check for auth token
@@ -149,10 +162,16 @@ export function GasGuardPanel() {
       if (result?.executionId) {
         setExecutionId(result.executionId);
         setStatus("waiting");
+        // Store the active config to show in monitor
+        setActiveConfig({ ...config });
+
         toast({
           title: "GasGuard Activated",
           description: `Execution scheduled. ID: ${result.executionId.slice(0, 10)}...`,
         });
+
+        // Refresh list
+        fetchExecutions();
       } else {
         throw new Error("Failed to schedule execution");
       }
@@ -168,7 +187,7 @@ export function GasGuardPanel() {
     }
   };
 
-  // Poll for status updates
+  // Poll for status updates for the ACTIVE execution
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -179,9 +198,11 @@ export function GasGuardPanel() {
 
           if (txStatus.status === "COMPLETED") {
             setStatus("completed");
+            fetchExecutions(); // Refresh history
           } else if (txStatus.status === "FAILED") {
             setStatus("failed");
             setRevertReason(txStatus.error || "Execution Reverted on-chain");
+            fetchExecutions(); // Refresh history
           } else if (txStatus.status === "SCHEDULED" || txStatus.status === "MONITORING") {
             // Keep waiting
             if (status !== "waiting" && status !== "executing") {
@@ -197,174 +218,221 @@ export function GasGuardPanel() {
       interval = setInterval(checkStatus, 5000); // Poll every 5s
     }
     return () => clearInterval(interval);
-  }, [executionId, status, getTransactionStatus]);
+  }, [executionId, status, getTransactionStatus, fetchExecutions]);
+
+  const handleSelectExecution = (exec: Execution) => {
+    setSelectedExecution(exec);
+    // Scroll to top to see details
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedExecution(null);
+  };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-2 lg:items-start h-full">
-      {/* Configuration Panel */}
-      <Card variant="glass" className="h-full flex flex-col">
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary glow-primary shrink-0">
-              <Shield className="h-6 w-6 text-primary-foreground" />
+    <div className="space-y-8 h-full">
+      <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+        {/* Configuration Panel */}
+        <Card variant="glass" className="h-full flex flex-col">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary glow-primary shrink-0">
+                <Shield className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">GasGuard Configuration</CardTitle>
+                <CardDescription>Set your protection parameters</CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-xl">GasGuard Configuration</CardTitle>
-              <CardDescription>Set your protection parameters</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-8 flex-1">
-          {/* Transaction Type */}
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-muted-foreground block">
-              Transaction Type
-            </label>
-            <div className="flex bg-muted/30 p-1 rounded-lg gap-1">
-              {(["swap", "deploy", "mint"] as TransactionType[]).map((type) => (
-                <Button
-                  key={type}
-                  variant={txType === type ? "default" : "ghost"}
-                  onClick={() => setTxType(type)}
-                  className={`flex-1 capitalize text-sm h-9 ${txType === type ? 'shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  {type}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Max Gas Price */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Fuel className="h-4 w-4" />
-                Max Gas Price
+          </CardHeader>
+          <CardContent className="space-y-8 flex-1">
+            {/* Transaction Type */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-muted-foreground block">
+                Transaction Type
               </label>
-              <span className="text-base font-bold font-mono text-primary">{config.maxGasPrice} gwei</span>
+              <div className="flex bg-muted/30 p-1 rounded-lg gap-1">
+                {(["swap", "deploy", "mint"] as TransactionType[]).map((type) => (
+                  <Button
+                    key={type}
+                    variant={txType === type ? "default" : "ghost"}
+                    onClick={() => setTxType(type)}
+                    className={`flex-1 capitalize text-sm h-9 ${txType === type ? 'shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    {type}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <Slider
-              value={[config.maxGasPrice]}
-              onValueChange={([value]) => setConfig({ ...config, maxGasPrice: value })}
-              max={100}
-              min={1}
-              step={1}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground font-mono">
-              <span>1 gwei</span>
-              <span>100 gwei</span>
-            </div>
-          </div>
 
-          {/* Min FLR Price */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Min FLR Price (FTSOv2)
-              </label>
-              <span className="text-base font-bold font-mono text-primary">${config.minFlrPrice.toFixed(4)}</span>
+            {/* Max Gas Price */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Fuel className="h-4 w-4" />
+                  Max Gas Price
+                </label>
+                <span className="text-base font-bold font-mono text-primary">{config.maxGasPrice} gwei</span>
+              </div>
+              <Slider
+                value={[config.maxGasPrice]}
+                onValueChange={([value]) => setConfig({ ...config, maxGasPrice: value })}
+                max={100}
+                min={1}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground font-mono">
+                <span>1 gwei</span>
+                <span>100 gwei</span>
+              </div>
             </div>
-            <Slider
-              value={[config.minFlrPrice * 1000]}
-              onValueChange={([value]) => setConfig({ ...config, minFlrPrice: value / 1000 })}
-              max={100}
-              min={1}
-              step={1}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground font-mono">
-              <span>$0.001</span>
-              <span>$0.100</span>
-            </div>
-          </div>
 
-          {/* Slippage */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-muted-foreground">Slippage Tolerance</label>
-              <span className="text-base font-bold font-mono text-primary">{config.slippage}%</span>
+            {/* Min FLR Price */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Min FLR Price (FTSOv2)
+                </label>
+                <span className="text-base font-bold font-mono text-primary">${config.minFlrPrice.toFixed(4)}</span>
+              </div>
+              <Slider
+                value={[config.minFlrPrice * 1000]}
+                onValueChange={([value]) => setConfig({ ...config, minFlrPrice: value / 1000 })}
+                max={100}
+                min={1}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground font-mono">
+                <span>$0.001</span>
+                <span>$0.100</span>
+              </div>
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              {[0.1, 0.5, 1.0, 2.0].map((val) => (
-                <Button
-                  key={val}
-                  variant={config.slippage === val ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setConfig({ ...config, slippage: val })}
-                  className="font-mono text-xs"
-                >
-                  {val}%
-                </Button>
-              ))}
-            </div>
-          </div>
 
-          {/* Deadline */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Deadline
-              </label>
-              <span className="text-base font-bold font-mono text-primary">{config.deadline} minutes</span>
+            {/* Slippage */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-muted-foreground">Slippage Tolerance</label>
+                <span className="text-base font-bold font-mono text-primary">{config.slippage}%</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[0.1, 0.5, 1.0, 2.0].map((val) => (
+                  <Button
+                    key={val}
+                    variant={config.slippage === val ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setConfig({ ...config, slippage: val })}
+                    className="font-mono text-xs"
+                  >
+                    {val}%
+                  </Button>
+                ))}
+              </div>
             </div>
-            <Slider
-              value={[config.deadline]}
-              onValueChange={([value]) => setConfig({ ...config, deadline: value })}
-              max={120}
-              min={5}
-              step={5}
-              className="w-full"
-            />
-          </div>
 
-          <Button
-            variant="hero"
-            size="lg"
-            className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all mt-6"
-            onClick={handleActivate}
-            disabled={status === "waiting" || status === "executing" || !connected || guardLoading}
-          >
-            {guardLoading ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Initializing...
-              </>
-            ) : status === "waiting" || status === "executing" ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Protection Active
-              </>
-            ) : (
-              <>
-                <Shield className="h-5 w-5 mr-2" />
-                Activate GasGuard Protection
-              </>
+            {/* Deadline */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Deadline
+                </label>
+                <span className="text-base font-bold font-mono text-primary">{config.deadline} minutes</span>
+              </div>
+              <Slider
+                value={[config.deadline]}
+                onValueChange={([value]) => setConfig({ ...config, deadline: value })}
+                max={120}
+                min={5}
+                step={5}
+                className="w-full"
+              />
+            </div>
+
+            <Button
+              variant="hero"
+              size="lg"
+              className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all mt-6"
+              onClick={handleActivate}
+              disabled={status === "waiting" || status === "executing" || !connected || guardLoading}
+            >
+              {guardLoading ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Initializing...
+                </>
+              ) : status === "waiting" || status === "executing" ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Protection Active
+                </>
+              ) : (
+                <>
+                  <Shield className="h-5 w-5 mr-2" />
+                  Activate GasGuard Protection
+                </>
+              )}
+            </Button>
+
+            {!connected && (
+              <div className="flex justify-center mt-2">
+                <span className="px-3 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+                  Wallet disconnected
+                </span>
+              </div>
             )}
-          </Button>
+          </CardContent>
+        </Card>
 
-          {!connected && (
-            <div className="flex justify-center mt-2">
-              <span className="px-3 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
-                Wallet disconnected
-              </span>
-            </div>
+        {/* Execution Monitor */}
+        <div className="h-full">
+          {selectedExecution ? (
+            <ExecutionMonitor
+              status={selectedExecution.status.toLowerCase() as GuardStatus}
+              executionId={selectedExecution.executionId}
+              config={{
+                maxGasPrice: Number(selectedExecution.maxGasPrice || 0) / 1e9,
+                minFlrPrice: 0, // Not stored in simple view
+                slippage: 0,
+                deadline: 0
+              }}
+              currentGas={currentGas}
+              currentFlrPrice={currentFlrPrice}
+              gasLoading={false}
+              revertReason={selectedExecution.revertReason}
+              mode="historical"
+              actualGasPrice={selectedExecution.actualGasPrice ? Number(selectedExecution.actualGasPrice) : undefined}
+              actualFlrPrice={selectedExecution.actualFlrPrice ? Number(selectedExecution.actualFlrPrice) : undefined}
+              savedUsd={selectedExecution.savedUsd}
+              txHash={selectedExecution.txHash}
+              onClose={handleCloseDetails}
+            />
+          ) : (
+            <ExecutionMonitor
+              status={status}
+              executionId={executionId}
+              config={status !== 'idle' ? activeConfig : config}
+              currentGas={currentGas}
+              currentFlrPrice={currentFlrPrice}
+              gasLoading={gasLoading}
+              revertReason={revertReason}
+              mode="live"
+            />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Execution Monitor */}
-      <div className="h-full">
-        <ExecutionMonitor
-          status={status}
-          executionId={executionId}
-          config={config}
-          currentGas={currentGas}
-          currentFlrPrice={currentFlrPrice}
-          gasLoading={gasLoading}
-          revertReason={revertReason}
+      {/* Execution History Table */}
+      <div className="pt-4">
+        <ExecutionHistory
+          executions={executions}
+          loading={historyLoading}
+          onRefresh={() => fetchExecutions()}
+          onSelect={handleSelectExecution}
+          isAuthenticated={isAuthenticated}
         />
       </div>
     </div>

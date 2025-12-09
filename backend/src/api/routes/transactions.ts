@@ -8,6 +8,60 @@ import FTSOv2Service from '../../services/FTSOv2Service.js';
 
 const router = Router();
 
+// GET /api/transactions
+router.get('/', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    if (!req.userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: req.userId },
+      orderBy: { scheduledAt: 'desc' },
+      take: limit,
+      skip: skip,
+      include: {
+        user: {
+          select: {
+            walletAddress: true
+          }
+        }
+      }
+    });
+
+    const total = await prisma.transaction.count({
+      where: { userId: req.userId },
+    });
+
+    // Helper to serialize BigInt
+    const serializedTransactions = JSON.parse(JSON.stringify(transactions, (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    ));
+
+    res.json({
+      success: true,
+      data: serializedTransactions,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error: any) {
+    console.error('List transactions error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to list transactions',
+    });
+  }
+});
+
 // POST /api/transactions/schedule
 router.post('/schedule', authenticate, async (req: AuthRequest, res) => {
   try {

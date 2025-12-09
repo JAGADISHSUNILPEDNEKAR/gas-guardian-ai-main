@@ -19,13 +19,15 @@ describe("GasGuard", function () {
 
     // Deploy PriceVerifier
     const PriceVerifier = await ethers.getContractFactory("PriceVerifier");
-    priceVerifier = await PriceVerifier.deploy(await mockFTSO.getAddress());
+    priceVerifier = await PriceVerifier.deploy(
+      await mockFTSO.getAddress(),
+      owner.address
+    );
     await priceVerifier.waitForDeployment();
 
     // Deploy GasGuard
     const GasGuard = await ethers.getContractFactory("GasGuard");
     gasGuard = await GasGuard.deploy(
-      await mockFTSO.getAddress(),
       await priceVerifier.getAddress()
     );
     await gasGuard.waitForDeployment();
@@ -54,7 +56,7 @@ describe("GasGuard", function () {
     const receipt = await tx.wait();
 
     const event = receipt.logs.find(
-      (log) => log.topics[0] === ethers.id("ExecutionScheduled(bytes32,address,uint256)")
+      (log) => log.topics[0] === ethers.id("ExecutionScheduled(bytes32,address,uint64)")
     );
     expect(event).to.not.be.undefined;
   });
@@ -77,7 +79,7 @@ describe("GasGuard", function () {
       gasGuard.connect(user).scheduleExecution(safetyParams, {
         value: ethers.parseEther("0.1"),
       })
-    ).to.be.revertedWith("Deadline in past");
+    ).to.be.revertedWithCustomError(gasGuard, "DeadlineInPast");
   });
 });
 
