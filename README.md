@@ -42,6 +42,15 @@ Welcome! This repository contains Gas-Guard — a full-stack project that monito
 <img width="1440" height="900" alt="Screenshot 2025-12-08 at 7 29 39 PM" src="https://github.com/user-attachments/assets/ecbc212b-2916-4c2d-8db3-8f89d08adef7" />
 <img width="1440" height="900" alt="Screenshot 2025-12-08 at 7 27 54 PM" src="https://github.com/user-attachments/assets/7d9b1577-a3e5-4fd2-b584-b3d01fa95469" />
 
+# Contracts Deployed
+
+GasGuard: 0xF35ce668bA8c452ABeAFe6eD360D467879e00A3f
+Factory: 0xf139D65625CC1a4F4C0D1aA176c70A54E5525c58
+
+<img width="1440" height="900" alt="Screenshot 2025-12-09 at 12 04 00 PM" src="https://github.com/user-attachments/assets/d5145162-3ab7-438d-af06-da0859b52e49" />
+<img width="1440" height="900" alt="Screenshot 2025-12-09 at 12 04 14 PM" src="https://github.com/user-attachments/assets/89584cd2-6632-48e7-b3ae-167c1f2d6d08" />
+
+
 
 **Table of contents**
 - Project highlights
