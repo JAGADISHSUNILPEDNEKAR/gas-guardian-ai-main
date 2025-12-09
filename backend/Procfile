@@ -1,0 +1,2 @@
+# Start the backend server
+web: npm start
